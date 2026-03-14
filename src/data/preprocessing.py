@@ -1,0 +1,376 @@
+"""Align all rasters to BCM grid, compute derived features, build zarr store."""
+
+import logging
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import zarr
+
+logger = logging.getLogger(__name__)
+
+
+def build_time_index(start_ym: str, end_ym: str) -> List[str]:
+    """Build a list of YYYY-MM strings from start to end (inclusive)."""
+    sy, sm = map(int, start_ym.split("-"))
+    ey, em = map(int, end_ym.split("-"))
+    months = []
+    y, m = sy, sm
+    while (y, m) <= (ey, em):
+        months.append(f"{y:04d}-{m:02d}")
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return months
+
+
+def compute_snow_frac(
+    tmin: np.ndarray,
+    tmax: np.ndarray,
+    threshold: float = 0.0,
+    transition_width: float = 2.0,
+) -> np.ndarray:
+    """Compute fraction of precipitation falling as snow.
+
+    snow_frac = max(0, min(1, (threshold - tmean) / transition_width))
+    """
+    tmean = (tmin + tmax) / 2.0
+    frac = np.clip((threshold - tmean) / transition_width, 0.0, 1.0)
+    return frac
+
+
+def build_zarr_store(
+    zarr_path: str,
+    bcm_dir: str,
+    sciencebase_dir: str,
+    daymet_dir: str,
+    prism_dir: str,
+    topo_solar_path: str,
+    elevation_path: str,
+    bcm_profile: dict,
+    time_range: Tuple[str, str] = ("1980-01", "2020-09"),
+    snow_threshold: float = 0.0,
+    snow_transition: float = 2.0,
+) -> str:
+    """Build zarr store with all inputs and targets aligned to BCM grid.
+
+    Data sources:
+        - ScienceBase: ppt, tmin, tmax (resampled 270m -> 1km BCM grid)
+        - DAYMET: srad (reprojected to BCM grid)
+        - PRISM daily-derived: wet_days, ppt_intensity (reprojected to BCM grid)
+        - BCM outputs: aet, cwd, pck (targets, on BCM grid)
+        - Local: elevation, topo_solar, lat, lon (static)
+
+    Zarr structure:
+        /inputs/dynamic    (T, 9, H, W)   - dynamic input channels
+        /inputs/static     (4, H, W)      - static input channels
+        /targets/pet       (T, H, W)
+        /targets/pck       (T, H, W)
+        /targets/aet       (T, H, W)
+        /targets/cwd       (T, H, W)
+        /meta/time         (T,)           - YYYY-MM strings
+        /meta/valid_mask   (H, W)         - boolean valid pixel mask
+        /meta/pixel_elev   (H, W)         - elevation for stratification
+    """
+    import rasterio
+    from rasterio.warp import reproject, Resampling
+
+    from ..utils.io_helpers import (
+        get_valid_mask,
+        read_raster_as_masked,
+    )
+
+    time_index = build_time_index(*time_range)
+    T = len(time_index)
+    H, W = bcm_profile["height"], bcm_profile["width"]
+
+    logger.info(f"Building zarr store: {T} timesteps, {H}x{W} grid")
+
+    # Create zarr store
+    store = zarr.open(zarr_path, mode="w")
+
+    # Dynamic inputs: (T, 9, H, W)
+    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev
+    dynamic = store.zeros(
+        "inputs/dynamic", shape=(T, 9, H, W), chunks=(12, 9, H, W), dtype="float32"
+    )
+
+    # Static inputs: (4, H, W) -- elev, topo_solar, lat, lon
+    static = store.zeros("inputs/static", shape=(4, H, W), dtype="float32")
+
+    # Targets: (T, H, W)
+    for var in ["pet", "pck", "aet", "cwd"]:
+        store.zeros(f"targets/{var}", shape=(T, H, W), chunks=(12, H, W), dtype="float32")
+
+    # Time index
+    store.array("meta/time", data=np.array(time_index, dtype="U7"))
+
+    # Valid mask
+    valid_mask = get_valid_mask(bcm_dir)
+    store.array("meta/valid_mask", data=valid_mask)
+
+    # ---- Static inputs ----
+    logger.info("Processing static inputs...")
+
+    # Elevation
+    elev = _read_and_align(elevation_path, bcm_profile)
+    elev[~valid_mask] = 0.0
+    static[0] = elev
+    store.array("meta/pixel_elev", data=elev)
+
+    # Topographic solar radiation
+    topo = read_raster_as_masked(topo_solar_path)
+    topo[np.isnan(topo)] = 0.0
+    static[1] = topo
+
+    # Normalized latitude and longitude from grid coordinates
+    transform = bcm_profile["transform"]
+    cols = np.arange(W)
+    rows = np.arange(H)
+    x_coords = transform.c + cols * transform.a
+    y_coords = transform.f + rows * transform.e
+
+    x_grid = np.broadcast_to(x_coords[np.newaxis, :], (H, W)).astype(np.float32)
+    y_grid = np.broadcast_to(y_coords[:, np.newaxis], (H, W)).astype(np.float32)
+
+    x_norm = (x_grid - x_grid.min()) / (x_grid.max() - x_grid.min() + 1e-8)
+    y_norm = (y_grid - y_grid.min()) / (y_grid.max() - y_grid.min() + 1e-8)
+
+    static[2] = y_norm  # lat (northing)
+    static[3] = x_norm  # lon (easting)
+
+    # ---- Dynamic inputs and targets ----
+    logger.info("Processing dynamic inputs and targets...")
+
+    sb_dir = Path(sciencebase_dir)
+    daymet_processed = Path(daymet_dir)
+    prism_processed = Path(prism_dir)
+
+    # Track missing data for summary
+    missing_counts = {"ppt": 0, "tmin": 0, "tmax": 0, "wet_days": 0,
+                      "ppt_intensity": 0, "srad": 0, "aet": 0, "cwd": 0, "pck": 0}
+
+    for t_idx, ym in enumerate(time_index):
+        if t_idx % 60 == 0:
+            logger.info(f"Processing timestep {t_idx}/{T}: {ym}")
+
+        year_str = ym[:4]
+        month_str = ym[5:7]
+        ym_compact = f"{year_str}{month_str}"
+
+        # --- ScienceBase climate inputs: ppt, tmin, tmax ---
+        # Already resampled to BCM 1km grid during download
+        for ch_idx, our_name in enumerate(["ppt", "tmin", "tmax"]):
+            fpath = _find_file(sb_dir / our_name, f"{our_name}-{ym_compact}.tif")
+            if fpath:
+                data = _read_bcm_grid_file(str(fpath))
+                data[~valid_mask] = 0.0
+                dynamic[t_idx, ch_idx] = data
+            else:
+                missing_counts[our_name] += 1
+
+        # --- Wet days and ppt intensity (from PRISM daily-derived) ---
+        wet_path = _find_file(prism_processed / "wet_days", f"*{ym_compact}*.tif")
+        if wet_path:
+            dynamic[t_idx, 3] = _read_and_align(str(wet_path), bcm_profile)
+        else:
+            missing_counts["wet_days"] += 1
+
+        int_path = _find_file(prism_processed / "ppt_intensity", f"*{ym_compact}*.tif")
+        if int_path:
+            dynamic[t_idx, 4] = _read_and_align(str(int_path), bcm_profile)
+        else:
+            missing_counts["ppt_intensity"] += 1
+
+        # --- DAYMET srad ---
+        srad_path = _find_file(daymet_processed / "srad_bcm", f"srad-{ym_compact}.tif")
+        if srad_path:
+            dynamic[t_idx, 5] = _read_and_align(str(srad_path), bcm_profile)
+        else:
+            missing_counts["srad"] += 1
+
+        # --- Snow fraction (derived from tmin, tmax) ---
+        tmin_data = np.array(dynamic[t_idx, 1])
+        tmax_data = np.array(dynamic[t_idx, 2])
+        snow_frac = compute_snow_frac(
+            tmin_data, tmax_data,
+            threshold=snow_threshold, transition_width=snow_transition,
+        )
+        dynamic[t_idx, 6] = snow_frac
+
+        # --- Targets: aet, cwd from BCM local outputs ---
+        aet_data = None
+        cwd_data = None
+        for var in ["aet", "cwd"]:
+            fpath = _find_file(Path(bcm_dir) / var, f"{var}-{ym_compact}.tif")
+            if fpath:
+                data = read_raster_as_masked(str(fpath))
+                data[np.isnan(data)] = 0.0
+                store[f"targets/{var}"][t_idx] = data
+                if var == "aet":
+                    aet_data = data
+                else:
+                    cwd_data = data
+            else:
+                missing_counts[var] += 1
+
+        # --- Target: PCK from local BCM first, then ScienceBase gap-fill ---
+        pck_fpath = _find_file(Path(bcm_dir) / "pck", f"pck-{ym_compact}.tif")
+        if pck_fpath is None:
+            # Try ScienceBase gap-fill directory
+            pck_fpath = _find_file(sb_dir / "pck", f"pck-{ym_compact}.tif")
+        if pck_fpath:
+            pck_data = read_raster_as_masked(str(pck_fpath))
+            pck_data[np.isnan(pck_data)] = 0.0
+            store["targets/pck"][t_idx] = pck_data
+        else:
+            missing_counts["pck"] += 1
+
+        # --- Target: PET derived as AET + CWD ---
+        if aet_data is not None and cwd_data is not None:
+            pet_data = aet_data + cwd_data
+            store["targets/pet"][t_idx] = pet_data
+
+    # --- Log missing data summary ---
+    for var, count in missing_counts.items():
+        if count > 0:
+            logger.warning(f"Missing {var}: {count}/{T} timesteps (filled with zeros)")
+
+    # --- Fill pck_prev and aet_prev channels ---
+    logger.info("Filling PCK(t-1) and AET(t-1) channels...")
+    for t_idx in range(1, T):
+        dynamic[t_idx, 7] = np.array(store["targets/pck"][t_idx - 1])
+        dynamic[t_idx, 8] = np.array(store["targets/aet"][t_idx - 1])
+
+    # --- Compute and store normalization stats ---
+    logger.info("Computing normalization statistics...")
+    _compute_norm_stats(store, valid_mask)
+
+    logger.info(f"Zarr store built: {zarr_path}")
+    return zarr_path
+
+
+def _find_file(directory: Path, pattern: str) -> Optional[Path]:
+    """Find a file matching a glob pattern in a directory."""
+    if not directory.exists():
+        return None
+    matches = list(directory.glob(pattern))
+    return matches[0] if matches else None
+
+
+def _read_bcm_grid_file(path: str) -> np.ndarray:
+    """Read a file already on the BCM grid (no reprojection needed)."""
+    import rasterio
+
+    with rasterio.open(path) as src:
+        data = src.read(1).astype(np.float32)
+    nodata = -9999.0
+    data[data == nodata] = np.nan
+    data[np.isnan(data)] = 0.0
+    return data
+
+
+def _read_and_align(path: str, bcm_profile: dict) -> np.ndarray:
+    """Read a raster and align to BCM grid, reprojecting if needed."""
+    import rasterio
+    from rasterio.warp import reproject, Resampling
+
+    with rasterio.open(path) as src:
+        h, w = bcm_profile["height"], bcm_profile["width"]
+
+        if (
+            src.crs == rasterio.CRS.from_string(str(bcm_profile["crs"]))
+            and src.shape == (h, w)
+        ):
+            data = src.read(1).astype(np.float32)
+        else:
+            data = np.full((h, w), np.nan, dtype=np.float32)
+            reproject(
+                source=rasterio.band(src, 1),
+                destination=data,
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=bcm_profile["transform"],
+                dst_crs=bcm_profile["crs"],
+                resampling=Resampling.bilinear,
+            )
+
+    data[data == -9999.0] = 0.0
+    data[np.isnan(data)] = 0.0
+    return data
+
+
+def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
+    """Compute per-channel mean and std for normalization."""
+    dynamic = store["inputs/dynamic"]
+    T = dynamic.shape[0]
+
+    n_channels = 9
+    channel_names = [
+        "ppt", "tmin", "tmax", "wet_days", "ppt_intensity",
+        "srad", "snow_frac", "pck_prev", "aet_prev",
+    ]
+
+    n_valid = valid_mask.sum()
+    chunk_size = 60
+
+    running_sum = np.zeros(n_channels, dtype=np.float64)
+    running_sq_sum = np.zeros(n_channels, dtype=np.float64)
+    count = 0
+
+    for t_start in range(0, T, chunk_size):
+        t_end = min(t_start + chunk_size, T)
+        chunk = np.array(dynamic[t_start:t_end])
+        for ch in range(n_channels):
+            vals = chunk[:, ch][..., valid_mask]
+            running_sum[ch] += vals.sum()
+            running_sq_sum[ch] += (vals**2).sum()
+        count += (t_end - t_start) * n_valid
+
+    means = running_sum / count
+    stds = np.sqrt(running_sq_sum / count - means**2)
+    stds[stds < 1e-8] = 1.0
+
+    # Static channels
+    static = np.array(store["inputs/static"])
+    static_means = np.zeros(4, dtype=np.float64)
+    static_stds = np.zeros(4, dtype=np.float64)
+    for ch in range(4):
+        vals = static[ch][valid_mask]
+        static_means[ch] = vals.mean()
+        static_stds[ch] = vals.std()
+        if static_stds[ch] < 1e-8:
+            static_stds[ch] = 1.0
+
+    # Target stats
+    target_names = ["pet", "pck", "aet", "cwd"]
+    target_means = np.zeros(4, dtype=np.float64)
+    target_stds = np.zeros(4, dtype=np.float64)
+
+    for i, var in enumerate(target_names):
+        target_data = store[f"targets/{var}"]
+        r_sum, r_sq = 0.0, 0.0
+        for t_start in range(0, T, chunk_size):
+            t_end = min(t_start + chunk_size, T)
+            chunk = np.array(target_data[t_start:t_end])
+            vals = chunk[:, valid_mask]
+            r_sum += vals.sum()
+            r_sq += (vals**2).sum()
+        cnt = T * n_valid
+        target_means[i] = r_sum / cnt
+        target_stds[i] = np.sqrt(r_sq / cnt - target_means[i]**2)
+        if target_stds[i] < 1e-8:
+            target_stds[i] = 1.0
+
+    # Save stats
+    store.array("norm/dynamic_mean", data=means.astype(np.float32), overwrite=True)
+    store.array("norm/dynamic_std", data=stds.astype(np.float32), overwrite=True)
+    store.array("norm/static_mean", data=static_means.astype(np.float32), overwrite=True)
+    store.array("norm/static_std", data=static_stds.astype(np.float32), overwrite=True)
+    store.array("norm/target_mean", data=target_means.astype(np.float32), overwrite=True)
+    store.array("norm/target_std", data=target_stds.astype(np.float32), overwrite=True)
+    store.array("norm/dynamic_names", data=np.array(channel_names, dtype="U20"), overwrite=True)
+    store.array("norm/target_names", data=np.array(target_names, dtype="U20"), overwrite=True)
+
+    logger.info(f"Normalization stats computed. Dynamic means: {means}")
