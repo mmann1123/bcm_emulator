@@ -128,7 +128,11 @@ def compute_pixel_nse(
     numerator = np.nansum((observed - predicted) ** 2, axis=0)
     denominator = np.nansum((observed - obs_mean) ** 2, axis=0)
 
-    nse_map = np.where(denominator > 0, 1.0 - numerator / denominator, np.nan)
+    # Use a minimum denominator threshold to avoid spurious NSE from
+    # near-zero-variance pixels (e.g., snow pixels in a low-snow test year
+    # where obs ≈ 0 but has tiny float residuals making denominator > 0).
+    min_denom = 1.0  # 1 mm^2 — below this, variance is not meaningful
+    nse_map = np.where(denominator >= min_denom, 1.0 - numerator / denominator, np.nan)
     return nse_map
 
 
