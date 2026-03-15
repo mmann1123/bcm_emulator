@@ -126,7 +126,7 @@ def download_fveg(
         whrnum_data = src.read(1).astype(np.int32)
 
     # Build WHRNUM → contiguous class ID mapping
-    unique_whrnum = sorted(set(whrnum_data[whrnum_data > 0]))
+    unique_whrnum = sorted(int(x) for x in set(whrnum_data[whrnum_data > 0]))
     whrnum_to_classid = {wn: idx + 1 for idx, wn in enumerate(unique_whrnum)}
     num_classes = len(unique_whrnum) + 1  # +1 for class 0
 
@@ -162,7 +162,7 @@ def download_fveg(
     class_map_save = {
         "num_classes": num_classes,
         "id_to_info": {str(k): v for k, v in id_to_info.items()},
-        "whrnum_to_classid": {str(k): v for k, v in whrnum_to_classid.items()},
+        "whrnum_to_classid": {str(k): int(v) for k, v in whrnum_to_classid.items()},
     }
     with open(classmap_path, "w") as f:
         json.dump(class_map_save, f, indent=2)

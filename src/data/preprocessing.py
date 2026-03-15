@@ -94,22 +94,22 @@ def build_zarr_store(
     # Dynamic inputs: (T, 9, H, W)
     # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev
     dynamic = store.zeros(
-        "inputs/dynamic", shape=(T, 9, H, W), chunks=(12, 9, H, W), dtype="float32"
+        name="inputs/dynamic", shape=(T, 9, H, W), chunks=(12, 9, H, W), dtype="float32"
     )
 
     # Static inputs: (5, H, W) -- elev, topo_solar, lat, lon, fveg_class_id
-    static = store.zeros("inputs/static", shape=(5, H, W), dtype="float32")
+    static = store.zeros(name="inputs/static", shape=(5, H, W), dtype="float32")
 
     # Targets: (T, H, W)
     for var in ["pet", "pck", "aet", "cwd"]:
-        store.zeros(f"targets/{var}", shape=(T, H, W), chunks=(12, H, W), dtype="float32")
+        store.zeros(name=f"targets/{var}", shape=(T, H, W), chunks=(12, H, W), dtype="float32")
 
     # Time index
-    store.array("meta/time", data=np.array(time_index, dtype="U7"))
+    store.create_array(name="meta/time", data=np.array(time_index, dtype="U7"))
 
     # Valid mask
     valid_mask = get_valid_mask(bcm_dir)
-    store.array("meta/valid_mask", data=valid_mask)
+    store.create_array(name="meta/valid_mask", data=valid_mask)
 
     # ---- Static inputs ----
     logger.info("Processing static inputs...")
@@ -118,7 +118,7 @@ def build_zarr_store(
     elev = _read_and_align(elevation_path, bcm_profile)
     elev[~valid_mask] = 0.0
     static[0] = elev
-    store.array("meta/pixel_elev", data=elev)
+    store.create_array(name="meta/pixel_elev", data=elev)
 
     # Topographic solar radiation
     topo = read_raster_as_masked(topo_solar_path)
@@ -157,8 +157,8 @@ def build_zarr_store(
             with open(classmap_path) as f:
                 fveg_meta = _json.load(f)
             num_fveg_classes = fveg_meta["num_classes"]
-            store.array("meta/fveg_num_classes", data=np.array([num_fveg_classes], dtype=np.int32))
-            store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_string"])
+            store.create_array(name="meta/fveg_num_classes", data=np.array([num_fveg_classes], dtype=np.int32))
+            store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_info"])
             logger.info(f"FVEG: {num_fveg_classes} classes stored")
     else:
         logger.warning("FVEG data not found; channel 4 will be zeros")
@@ -389,13 +389,13 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
             target_stds[i] = 1.0
 
     # Save stats
-    store.array("norm/dynamic_mean", data=means.astype(np.float32), overwrite=True)
-    store.array("norm/dynamic_std", data=stds.astype(np.float32), overwrite=True)
-    store.array("norm/static_mean", data=static_means.astype(np.float32), overwrite=True)
-    store.array("norm/static_std", data=static_stds.astype(np.float32), overwrite=True)
-    store.array("norm/target_mean", data=target_means.astype(np.float32), overwrite=True)
-    store.array("norm/target_std", data=target_stds.astype(np.float32), overwrite=True)
-    store.array("norm/dynamic_names", data=np.array(channel_names, dtype="U20"), overwrite=True)
-    store.array("norm/target_names", data=np.array(target_names, dtype="U20"), overwrite=True)
+    store.create_array(name="norm/dynamic_mean", data=means.astype(np.float32), overwrite=True)
+    store.create_array(name="norm/dynamic_std", data=stds.astype(np.float32), overwrite=True)
+    store.create_array(name="norm/static_mean", data=static_means.astype(np.float32), overwrite=True)
+    store.create_array(name="norm/static_std", data=static_stds.astype(np.float32), overwrite=True)
+    store.create_array(name="norm/target_mean", data=target_means.astype(np.float32), overwrite=True)
+    store.create_array(name="norm/target_std", data=target_stds.astype(np.float32), overwrite=True)
+    store.create_array(name="norm/dynamic_names", data=np.array(channel_names, dtype="U20"), overwrite=True)
+    store.create_array(name="norm/target_names", data=np.array(target_names, dtype="U20"), overwrite=True)
 
     logger.info(f"Normalization stats computed. Dynamic means: {means}")
