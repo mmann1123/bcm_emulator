@@ -7,7 +7,15 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from contextlib import nullcontext
+
+try:
+    # PyTorch >= 2.0
+    from torch.amp import GradScaler, autocast
+    _HAS_NEW_AMP = True
+except ImportError:
+    from torch.cuda.amp import GradScaler, autocast
+    _HAS_NEW_AMP = False
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.utils.data import DataLoader
@@ -87,7 +95,9 @@ class BCMTrainer:
             total_epochs=self.epochs,
         )
 
-        # AMP
+        # AMP — disable on CPU
+        if self.device.type != "cuda":
+            self.amp_enabled = False
         self.scaler = GradScaler(enabled=self.amp_enabled)
 
         # Teacher forcing
@@ -156,7 +166,7 @@ class BCMTrainer:
 
             self.optimizer.zero_grad()
 
-            with autocast(device_type="cuda", enabled=self.amp_enabled):
+            with autocast("cuda", enabled=self.amp_enabled) if (_HAS_NEW_AMP and self.amp_enabled) else nullcontext():
                 preds = self.model(inputs, tf_ratio, gt_pck_prev, gt_aet_prev)
                 losses = self.criterion(preds, targets, epoch)
 
@@ -175,7 +185,7 @@ class BCMTrainer:
 
     @torch.no_grad()
     def _validate(self, epoch: int, tf_ratio: float) -> Dict[str, float]:
-        """Validate for one epoch."""
+        """Validate for one epoch (always fully autoregressive)."""
         self.model.eval()
         running = {"total": 0.0, "pet": 0.0, "pck": 0.0, "aet": 0.0, "cwd": 0.0}
         n_batches = 0
@@ -190,9 +200,9 @@ class BCMTrainer:
             if gt_aet_prev is not None:
                 gt_aet_prev = gt_aet_prev.to(self.device)
 
-            with autocast(device_type="cuda", enabled=self.amp_enabled):
-                # Validation always uses autoregressive (tf_ratio from schedule)
-                preds = self.model(inputs, tf_ratio, gt_pck_prev, gt_aet_prev)
+            with autocast("cuda", enabled=self.amp_enabled) if (_HAS_NEW_AMP and self.amp_enabled) else nullcontext():
+                # Validation always uses fully autoregressive mode
+                preds = self.model(inputs, 0.0, gt_pck_prev, gt_aet_prev)
                 losses = self.criterion(preds, targets, epoch)
 
             for k in running:

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from .backbone import TCNBackbone
-from .heads import AETStressHead, PointwiseHead
+from .heads import AETHead, PointwiseHead
 
 
 class BCMEmulator(nn.Module):
@@ -14,7 +14,7 @@ class BCMEmulator(nn.Module):
 
     Stage 1: Shared TCN backbone extracts temporal features.
     Stage 2: PET head (unconstrained) and PCK head (softplus >= 0).
-    Stage 3: AET = sigmoid(f) * PET (guarantees AET <= PET).
+    Stage 3: AET predicted unconstrained (AET <= PET enforced post-denorm).
              CWD = PET - AET (algebraic, no parameters).
 
     Input channels (13 total):
@@ -44,7 +44,7 @@ class BCMEmulator(nn.Module):
         self.pck_head = PointwiseHead(bb_out, activation="softplus")
 
         # Stage 3 head: takes backbone + PET + PCK
-        self.aet_head = AETStressHead(bb_out + 2)
+        self.aet_head = AETHead(bb_out + 2)
 
     def forward(
         self,

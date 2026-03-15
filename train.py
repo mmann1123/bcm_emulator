@@ -32,7 +32,7 @@ def main():
 
     # Data
     logger.info("Loading dataset...")
-    from src.data.dataset import BCMPixelDataset, ElevationStratifiedSampler
+    from src.data.dataset import BCMPixelDataset, EcoregionStratifiedSampler
     from src.data.splits import get_pixel_indices, get_time_splits
 
     import zarr
@@ -67,14 +67,15 @@ def main():
         normalize=True,
     )
 
-    # Elevation-stratified sampler for training
-    elevations = np.array(store["meta/pixel_elev"])
+    # Ecoregion-stratified sampler for training
+    import rasterio
+    with rasterio.open(cfg.paths.ecoregion_path) as src:
+        ecoregion_map = src.read(1)
 
-    train_sampler = ElevationStratifiedSampler(
+    train_sampler = EcoregionStratifiedSampler(
         pixel_indices=pixel_indices,
-        elevations=elevations,
-        n_bins=cfg.data.elevation_bins,
-        samples_per_epoch=len(pixel_indices),  # ~10% of pixels * n_windows
+        ecoregion_map=ecoregion_map,
+        samples_per_epoch=len(pixel_indices),
         n_windows=train_dataset.n_windows,
     )
 
@@ -99,6 +100,7 @@ def main():
         sampler=train_sampler,
         num_workers=cfg.data.num_workers,
         pin_memory=True,
+        persistent_workers=True,
         collate_fn=collate_fn,
     )
 
@@ -108,6 +110,7 @@ def main():
         shuffle=False,
         num_workers=cfg.data.num_workers,
         pin_memory=True,
+        persistent_workers=True,
         collate_fn=collate_fn,
     )
 

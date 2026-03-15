@@ -77,6 +77,9 @@ def _save_nse_png(
     # Use diverging colormap centered at 0
     vmin = max(-1.0, np.nanpercentile(plot_data, 2))
     vmax = 1.0
+    # Ensure vmin < vcenter < vmax for TwoSlopeNorm
+    if vmin >= 0:
+        vmin = -0.01
     norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
 
     im = ax.imshow(plot_data, cmap="RdYlGn", norm=norm)

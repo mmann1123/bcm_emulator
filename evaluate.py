@@ -135,10 +135,17 @@ def main():
                 row, col = pixel_indices[pixel_count + b]
 
                 for i, var in enumerate(["pet", "pck", "aet", "cwd"]):
-                    # Denormalize predictions
+                    # Denormalize predictions and clamp to non-negative
                     pred_val = preds[var][b, 0].cpu().numpy()
                     pred_val = pred_val * tgt_std[i] + tgt_mean[i]
+                    pred_val = np.maximum(pred_val, 0.0)
                     predicted[var][:, row, col] = pred_val
+
+                # Enforce AET <= PET in physical space
+                predicted["aet"][:, row, col] = np.minimum(
+                    predicted["aet"][:, row, col],
+                    predicted["pet"][:, row, col],
+                )
 
                     # Denormalize targets
                     tgt_val = batch["targets"][var][b, 0].cpu().numpy()

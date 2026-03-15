@@ -39,14 +39,14 @@ class BCMPixelDataset(Dataset):
         seq_len: int = 48,
         normalize: bool = True,
     ):
-        self.store = zarr.open(zarr_path, mode="r")
+        store = zarr.open(zarr_path, mode="r")
         self.pixel_indices = pixel_indices  # (N, 2) array of (row, col)
         self.time_slice = time_slice
         self.seq_len = seq_len
         self.normalize = normalize
 
         # Get time dimension info
-        times = np.array(self.store["meta/time"])
+        times = np.array(store["meta/time"])
         self.times = times[time_slice]
         self.T = len(self.times)
 
@@ -56,15 +56,51 @@ class BCMPixelDataset(Dataset):
 
         # Load normalization stats
         if normalize:
-            self.dyn_mean = np.array(self.store["norm/dynamic_mean"])  # (9,)
-            self.dyn_std = np.array(self.store["norm/dynamic_std"])
-            self.stat_mean = np.array(self.store["norm/static_mean"])  # (4,)
-            self.stat_std = np.array(self.store["norm/static_std"])
-            self.tgt_mean = np.array(self.store["norm/target_mean"])  # (4,)
-            self.tgt_std = np.array(self.store["norm/target_std"])
+            self.dyn_mean = np.array(store["norm/dynamic_mean"])  # (9,)
+            self.dyn_std = np.array(store["norm/dynamic_std"])
+            self.stat_mean = np.array(store["norm/static_mean"])  # (4,)
+            self.stat_std = np.array(store["norm/static_std"])
+            self.tgt_mean = np.array(store["norm/target_mean"])  # (4,)
+            self.tgt_std = np.array(store["norm/target_std"])
 
-        # Preload static inputs (small, fits in memory)
-        self.static = np.array(self.store["inputs/static"])  # (4, H, W)
+        # Preload all data for selected pixels into RAM to avoid zarr I/O bottleneck
+        rows = pixel_indices[:, 0]
+        cols = pixel_indices[:, 1]
+
+        # We need time range including 1 step before time_slice for teacher forcing
+        t_start = max(0, time_slice.start - 1)
+        t_end = time_slice.stop
+        self._t_offset = time_slice.start - t_start  # 0 or 1
+
+        logger.info(f"Preloading data for {len(pixel_indices)} pixels into RAM...")
+
+        # Dynamic inputs: read each timestep once, extract all pixels -> (N_pixels, 9, T_load)
+        dynamic_zarr = store["inputs/dynamic"]  # (T, 9, H, W)
+        T_load = t_end - t_start
+        self._dynamic = np.empty((self.n_pixels, 9, T_load), dtype=np.float32)
+        for t in range(T_load):
+            t_abs = t_start + t
+            data_t = np.array(dynamic_zarr[t_abs])  # (9, H, W)
+            self._dynamic[:, :, t] = data_t[:, rows, cols].T.astype(np.float32)
+            if (t + 1) % 100 == 0:
+                logger.info(f"  Dynamic: {t+1}/{T_load} timesteps loaded")
+
+        # Static inputs: (N_pixels, 4)
+        static_full = np.array(store["inputs/static"])  # (4, H, W)
+        self._static = static_full[:, rows, cols].T.astype(np.float32)  # (N_pixels, 4)
+
+        # Targets: (N_pixels, T_load, 4) for pet, pck, aet, cwd
+        target_names = ["pet", "pck", "aet", "cwd"]
+        self._targets = np.empty((self.n_pixels, 4, T_load), dtype=np.float32)
+        for vi, var in enumerate(target_names):
+            tgt_zarr = store[f"targets/{var}"]  # (T, H, W)
+            for t in range(T_load):
+                t_abs = t_start + t
+                data_t = np.array(tgt_zarr[t_abs, :, :])  # (H, W)
+                self._targets[:, vi, t] = data_t[rows, cols].astype(np.float32)
+
+        logger.info(f"Preload complete. Dynamic: {self._dynamic.nbytes/1e6:.0f} MB, "
+                     f"Targets: {self._targets.nbytes/1e6:.0f} MB")
 
     def __len__(self) -> int:
         return self.n_pixels * self.n_windows
@@ -73,66 +109,47 @@ class BCMPixelDataset(Dataset):
         pixel_idx = idx // self.n_windows
         window_idx = idx % self.n_windows
 
-        row, col = self.pixel_indices[pixel_idx]
-
-        # Temporal indices
-        t_start = self.time_slice.start + window_idx
+        # Temporal indices into preloaded arrays
+        t_start = self._t_offset + window_idx
         t_end = t_start + self.seq_len
 
-        # Dynamic inputs: (T_window, 9) -> (9, T_window)
-        dynamic = np.array(
-            self.store["inputs/dynamic"][t_start:t_end, :, row, col]
-        )  # (seq_len, 9)
-        dynamic = dynamic.T  # (9, seq_len)
+        # Dynamic inputs: (9, seq_len) from preloaded array
+        dynamic = self._dynamic[pixel_idx, :, t_start:t_end].copy()  # (9, seq_len)
 
         # Static inputs: (4,) tiled to (4, seq_len)
-        static = self.static[:, row, col]  # (4,)
-        static_tiled = np.tile(static[:, np.newaxis], (1, self.seq_len))  # (4, seq_len)
+        static = self._static[pixel_idx]  # (4,)
+        static_tiled = np.broadcast_to(static[:, np.newaxis], (4, self.seq_len)).copy()
 
         # Combine: (13, seq_len)
         inputs = np.concatenate([dynamic, static_tiled], axis=0)
 
-        # Targets
-        targets = {}
+        # Targets: (4, seq_len) from preloaded array
+        tgt_slice = self._targets[pixel_idx, :, t_start:t_end]  # (4, seq_len)
+        targets = {
+            "pet": tgt_slice[0].copy(),
+            "pck": tgt_slice[1].copy(),
+            "aet": tgt_slice[2].copy(),
+            "cwd": tgt_slice[3].copy(),
+        }
+
+        # Ground truth PCK(t-1) and AET(t-1) for teacher forcing
         gt_pck_prev = np.zeros((1, self.seq_len), dtype=np.float32)
         gt_aet_prev = np.zeros((1, self.seq_len), dtype=np.float32)
 
-        for i, var in enumerate(["pet", "pck", "aet", "cwd"]):
-            t_data = np.array(
-                self.store[f"targets/{var}"][t_start:t_end, row, col]
-            )  # (seq_len,)
-            targets[var] = t_data
-
-        # Ground truth PCK(t-1) and AET(t-1) for teacher forcing
-        # These are the actual target values shifted by 1
-        if t_start > 0:
-            pck_prev_data = np.array(
-                self.store["targets/pck"][t_start - 1:t_end - 1, row, col]
-            )
-            aet_prev_data = np.array(
-                self.store["targets/aet"][t_start - 1:t_end - 1, row, col]
-            )
+        prev_start = t_start - 1
+        if prev_start >= 0:
+            gt_pck_prev[0] = self._targets[pixel_idx, 1, prev_start:prev_start + self.seq_len]
+            gt_aet_prev[0] = self._targets[pixel_idx, 2, prev_start:prev_start + self.seq_len]
         else:
-            pck_prev_data = np.zeros(self.seq_len, dtype=np.float32)
-            pck_prev_data[1:] = np.array(
-                self.store["targets/pck"][t_start:t_end - 1, row, col]
-            )
-            aet_prev_data = np.zeros(self.seq_len, dtype=np.float32)
-            aet_prev_data[1:] = np.array(
-                self.store["targets/aet"][t_start:t_end - 1, row, col]
-            )
-
-        gt_pck_prev[0] = pck_prev_data
-        gt_aet_prev[0] = aet_prev_data
+            gt_pck_prev[0, 1:] = self._targets[pixel_idx, 1, t_start:t_end - 1]
+            gt_aet_prev[0, 1:] = self._targets[pixel_idx, 2, t_start:t_end - 1]
 
         # Normalize
         if self.normalize:
-            # Dynamic channels
-            for ch in range(9):
-                inputs[ch] = (inputs[ch] - self.dyn_mean[ch]) / self.dyn_std[ch]
-            # Static channels
-            for ch in range(4):
-                inputs[9 + ch] = (inputs[9 + ch] - self.stat_mean[ch]) / self.stat_std[ch]
+            # Dynamic channels (vectorized)
+            inputs[:9] = (inputs[:9] - self.dyn_mean[:, np.newaxis]) / self.dyn_std[:, np.newaxis]
+            # Static channels (vectorized)
+            inputs[9:] = (inputs[9:] - self.stat_mean[:, np.newaxis]) / self.stat_std[:, np.newaxis]
             # Targets
             for i, var in enumerate(["pet", "pck", "aet", "cwd"]):
                 targets[var] = (targets[var] - self.tgt_mean[i]) / self.tgt_std[i]
@@ -153,17 +170,15 @@ class BCMPixelDataset(Dataset):
         return result
 
 
-class ElevationStratifiedSampler(Sampler):
-    """Samples equal numbers of pixels from each elevation band per epoch.
+class EcoregionStratifiedSampler(Sampler):
+    """Samples equal numbers of pixels from each L3 ecoregion per epoch.
 
     Parameters
     ----------
     pixel_indices : np.ndarray
         (N, 2) array of (row, col) for valid pixels.
-    elevations : np.ndarray
-        (H, W) elevation array.
-    n_bins : int
-        Number of elevation bins.
+    ecoregion_map : np.ndarray
+        (H, W) integer array of ecoregion IDs.
     samples_per_epoch : int
         Total number of pixel samples per epoch.
     n_windows : int
@@ -173,43 +188,39 @@ class ElevationStratifiedSampler(Sampler):
     def __init__(
         self,
         pixel_indices: np.ndarray,
-        elevations: np.ndarray,
-        n_bins: int = 5,
+        ecoregion_map: np.ndarray,
         samples_per_epoch: int = 10000,
         n_windows: int = 1,
     ):
-        self.pixel_indices = pixel_indices
         self.n_windows = n_windows
         self.samples_per_epoch = samples_per_epoch
 
-        # Get elevation for each pixel
-        pixel_elevs = elevations[pixel_indices[:, 0], pixel_indices[:, 1]]
+        # Get ecoregion for each pixel
+        pixel_ecos = ecoregion_map[pixel_indices[:, 0], pixel_indices[:, 1]]
 
-        # Create elevation bins
-        bin_edges = np.quantile(
-            pixel_elevs[~np.isnan(pixel_elevs)],
-            np.linspace(0, 1, n_bins + 1),
-        )
-        bin_edges[-1] += 1  # include max value
+        # Group pixels by ecoregion (skip nodata)
+        unique_ecos = np.unique(pixel_ecos)
+        unique_ecos = unique_ecos[unique_ecos > 0]  # skip nodata/invalid
 
-        # Assign pixels to bins
         self.bin_indices = []
-        for i in range(n_bins):
-            mask = (pixel_elevs >= bin_edges[i]) & (pixel_elevs < bin_edges[i + 1])
-            self.bin_indices.append(np.where(mask)[0])
+        for eco_id in unique_ecos:
+            mask = pixel_ecos == eco_id
+            idx = np.where(mask)[0]
+            if len(idx) > 0:
+                self.bin_indices.append(idx)
 
-        self.samples_per_bin = samples_per_epoch // n_bins
+        n_bins = len(self.bin_indices)
+        self.samples_per_bin = samples_per_epoch // max(n_bins, 1)
+        logger.info(f"EcoregionStratifiedSampler: {n_bins} ecoregions, "
+                    f"{self.samples_per_bin} samples/region, "
+                    f"{samples_per_epoch} total/epoch")
 
     def __iter__(self):
         indices = []
         for bin_idx in self.bin_indices:
-            if len(bin_idx) == 0:
-                continue
-            # Sample pixels from this bin
             sampled = np.random.choice(
-                bin_idx, size=min(self.samples_per_bin, len(bin_idx)), replace=True
+                bin_idx, size=self.samples_per_bin, replace=True
             )
-            # Convert pixel indices to dataset indices (pixel_idx * n_windows + random window)
             for px in sampled:
                 window = np.random.randint(0, self.n_windows)
                 indices.append(px * self.n_windows + window)
@@ -219,3 +230,7 @@ class ElevationStratifiedSampler(Sampler):
 
     def __len__(self):
         return self.samples_per_epoch
+
+
+# Keep old name as alias for backwards compatibility
+ElevationStratifiedSampler = EcoregionStratifiedSampler

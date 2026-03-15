@@ -10,6 +10,7 @@ paths:
   pet_sciencebase_dir: /home/mmann1123/extra_space/bcm_emulator/data/pet_sciencebase
   zarr_store: /home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr
   topo_solar_path: /home/mmann1123/extra_space/bcm_emulator/data/topo_solar.tif
+  ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
 
@@ -30,10 +31,10 @@ temporal:
 
 # Data settings
 data:
-  pixel_subsample_frac: 0.10
+  pixel_subsample_frac: 0.50
   elevation_bins: 5
-  batch_size: 256
-  num_workers: 4
+  batch_size: 1024
+  num_workers: 8
   snow_threshold_celsius: 0.0
   snow_transition_width: 2.0
 
