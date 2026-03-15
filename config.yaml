@@ -12,8 +12,10 @@ paths:
   topo_solar_path: /home/mmann1123/extra_space/bcm_emulator/data/topo_solar.tif
   ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
   fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
+  fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
+  snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
 
 # BCM grid reference (EPSG:3310, 1km)
 grid:
@@ -42,7 +44,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 21  # 9 dynamic + 4 static + 8 fveg embedding
+    in_channels: 13  # 9 dynamic + 4 static (set to 21 when FVEG embedding enabled)
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1

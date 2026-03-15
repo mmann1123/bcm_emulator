@@ -18,3 +18,7 @@ conda run -n deep_field python <script.py>
 - `src/models/` — Model architecture
 - `src/training/` — Trainer, losses, teacher forcing
 - `src/utils/` — Config, I/O helpers, topo solar
+
+## Development Practices
+
+- One-off bash/python commands are fine for **testing and exploration**, but all production data processing steps must live in the project scripts (e.g., `src/data/`, `prepare_data.py`) so they are documented, reproducible, and can be written up later. Do not leave critical processing steps as ad-hoc shell commands.

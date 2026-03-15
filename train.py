@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="Train BCM emulator")
     parser.add_argument("--config", default="config.yaml", help="Path to config YAML")
+    parser.add_argument("--run-id", default=None, help="Snapshot ID (e.g. 'v1-baseline'). Creates snapshot after training.")
+    parser.add_argument("--notes", default="", help="Notes for the snapshot manifest")
     args = parser.parse_args()
 
     from src.utils.config import load_config
@@ -167,6 +169,12 @@ def main():
     with open(history_path, "w") as f:
         json.dump(history, f, indent=2)
     logger.info(f"Training history saved: {history_path}")
+
+    # Create snapshot if --run-id provided
+    if args.run_id:
+        from src.utils.snapshot import create_snapshot
+        logger.info(f"Creating snapshot '{args.run_id}'...")
+        create_snapshot(args.run_id, cfg, notes=args.notes)
 
 
 if __name__ == "__main__":

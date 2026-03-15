@@ -85,11 +85,14 @@ class BCMPixelDataset(Dataset):
             if (t + 1) % 100 == 0:
                 logger.info(f"  Dynamic: {t+1}/{T_load} timesteps loaded")
 
-        # Static inputs: (N_pixels, 5) — split continuous (0-3) from FVEG class ID (4)
-        static_full = np.array(store["inputs/static"])  # (5, H, W)
-        static_all = static_full[:, rows, cols].T.astype(np.float32)  # (N_pixels, 5)
+        # Static inputs: continuous channels (0-3) + optional FVEG class ID (4)
+        static_full = np.array(store["inputs/static"])  # (C, H, W) where C is 4 or 5
+        static_all = static_full[:, rows, cols].T.astype(np.float32)  # (N_pixels, C)
         self._static = static_all[:, :4]  # (N_pixels, 4) — continuous static
-        self._fveg_ids = static_all[:, 4].astype(np.int64)  # (N_pixels,) — integer class IDs
+        if static_full.shape[0] > 4:
+            self._fveg_ids = static_all[:, 4].astype(np.int64)  # (N_pixels,) — integer class IDs
+        else:
+            self._fveg_ids = np.zeros(self.n_pixels, dtype=np.int64)  # no FVEG in zarr
 
         # Targets: (N_pixels, T_load, 4) for pet, pck, aet, cwd
         target_names = ["pet", "pck", "aet", "cwd"]

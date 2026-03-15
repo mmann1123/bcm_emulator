@@ -118,6 +118,7 @@ def main():
         fveg_results = download_fveg(
             out_dir=cfg.paths.fveg_dir,
             bcm_profile=bcm_profile,
+            vat_csv_path=cfg.paths.fveg_vat_csv,
         )
         for key, path in fveg_results.items():
             logger.info(f"  {key}: {path}")

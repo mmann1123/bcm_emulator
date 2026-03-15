@@ -34,6 +34,11 @@ def main():
         default="partveg",
         help="FVEG source: 'partveg' (zarr default, filtered) or 'full' (all pixels classified)",
     )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Snapshot ID. If set, also saves outputs into snapshots/{run_id}/",
+    )
     args = parser.parse_args()
 
     from src.utils.config import load_config
@@ -256,6 +261,36 @@ def main():
         valid_mask=valid_mask,
         output_dir=cfg.paths.output_dir,
     )
+
+    # Copy outputs to snapshot directory if --run-id provided
+    if args.run_id:
+        project_root = Path(cfg.paths.zarr_store).parent.parent
+        snap_dir = project_root / "snapshots" / args.run_id
+        if snap_dir.exists():
+            import shutil
+            # Copy metrics and diagnostics
+            for fname in ["metrics.json", "acf_diagnostics.json"]:
+                src = output_dir / fname
+                if src.exists():
+                    shutil.copy2(src, snap_dir / fname)
+            # Copy spatial maps
+            maps_src = output_dir / "spatial_maps"
+            maps_dst = snap_dir / "spatial_maps"
+            if maps_src.exists():
+                if maps_dst.exists():
+                    shutil.rmtree(maps_dst)
+                shutil.copytree(maps_src, maps_dst)
+            # Update manifest metrics_summary
+            manifest_path = snap_dir / "manifest.json"
+            if manifest_path.exists():
+                with open(manifest_path) as f:
+                    manifest = json.load(f)
+                manifest["metrics_summary"] = metrics_save
+                with open(manifest_path, "w") as f:
+                    json.dump(manifest, f, indent=2)
+            logger.info(f"Updated snapshot '{args.run_id}' with evaluation outputs")
+        else:
+            logger.warning(f"Snapshot directory {snap_dir} not found. Run create_snapshot first.")
 
     logger.info("Evaluation complete.")
 
