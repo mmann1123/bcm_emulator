@@ -159,15 +159,18 @@ class BCMTrainer:
             targets = {k: batch["targets"][k].to(self.device) for k in batch["targets"]}
             gt_pck_prev = batch.get("gt_pck_prev")
             gt_aet_prev = batch.get("gt_aet_prev")
+            fveg_ids = batch.get("fveg_ids")
             if gt_pck_prev is not None:
                 gt_pck_prev = gt_pck_prev.to(self.device)
             if gt_aet_prev is not None:
                 gt_aet_prev = gt_aet_prev.to(self.device)
+            if fveg_ids is not None:
+                fveg_ids = fveg_ids.to(self.device)
 
             self.optimizer.zero_grad()
 
             with autocast("cuda", enabled=self.amp_enabled) if (_HAS_NEW_AMP and self.amp_enabled) else nullcontext():
-                preds = self.model(inputs, tf_ratio, gt_pck_prev, gt_aet_prev)
+                preds = self.model(inputs, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids)
                 losses = self.criterion(preds, targets, epoch)
 
             self.scaler.scale(losses["total"]).backward()
@@ -195,14 +198,17 @@ class BCMTrainer:
             targets = {k: batch["targets"][k].to(self.device) for k in batch["targets"]}
             gt_pck_prev = batch.get("gt_pck_prev")
             gt_aet_prev = batch.get("gt_aet_prev")
+            fveg_ids = batch.get("fveg_ids")
             if gt_pck_prev is not None:
                 gt_pck_prev = gt_pck_prev.to(self.device)
             if gt_aet_prev is not None:
                 gt_aet_prev = gt_aet_prev.to(self.device)
+            if fveg_ids is not None:
+                fveg_ids = fveg_ids.to(self.device)
 
             with autocast("cuda", enabled=self.amp_enabled) if (_HAS_NEW_AMP and self.amp_enabled) else nullcontext():
                 # Validation always uses fully autoregressive mode
-                preds = self.model(inputs, 0.0, gt_pck_prev, gt_aet_prev)
+                preds = self.model(inputs, 0.0, gt_pck_prev, gt_aet_prev, fveg_ids)
                 losses = self.criterion(preds, targets, epoch)
 
             for k in running:

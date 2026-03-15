@@ -48,7 +48,8 @@ def build_zarr_store(
     prism_dir: str,
     topo_solar_path: str,
     elevation_path: str,
-    bcm_profile: dict,
+    fveg_dir: str = "",
+    bcm_profile: dict = None,
     time_range: Tuple[str, str] = ("1980-01", "2020-09"),
     snow_threshold: float = 0.0,
     snow_transition: float = 2.0,
@@ -96,8 +97,8 @@ def build_zarr_store(
         "inputs/dynamic", shape=(T, 9, H, W), chunks=(12, 9, H, W), dtype="float32"
     )
 
-    # Static inputs: (4, H, W) -- elev, topo_solar, lat, lon
-    static = store.zeros("inputs/static", shape=(4, H, W), dtype="float32")
+    # Static inputs: (5, H, W) -- elev, topo_solar, lat, lon, fveg_class_id
+    static = store.zeros("inputs/static", shape=(5, H, W), dtype="float32")
 
     # Targets: (T, H, W)
     for var in ["pet", "pck", "aet", "cwd"]:
@@ -139,6 +140,28 @@ def build_zarr_store(
 
     static[2] = y_norm  # lat (northing)
     static[3] = x_norm  # lon (easting)
+
+    # FVEG (CWHR vegetation class ID) -- channel 4
+    import json as _json
+
+    fveg_dir_path = Path(fveg_dir) if fveg_dir else None
+    if fveg_dir_path and (fveg_dir_path / "fveg_partveg.tif").exists():
+        logger.info("Loading FVEG partveg raster...")
+        fveg_data = _read_bcm_grid_file(str(fveg_dir_path / "fveg_partveg.tif"))
+        fveg_data[np.isnan(fveg_data)] = 0.0
+        static[4] = fveg_data
+
+        # Store FVEG metadata
+        classmap_path = fveg_dir_path / "fveg_class_map.json"
+        if classmap_path.exists():
+            with open(classmap_path) as f:
+                fveg_meta = _json.load(f)
+            num_fveg_classes = fveg_meta["num_classes"]
+            store.array("meta/fveg_num_classes", data=np.array([num_fveg_classes], dtype=np.int32))
+            store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_string"])
+            logger.info(f"FVEG: {num_fveg_classes} classes stored")
+    else:
+        logger.warning("FVEG data not found; channel 4 will be zeros")
 
     # ---- Dynamic inputs and targets ----
     logger.info("Processing dynamic inputs and targets...")
@@ -332,16 +355,18 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     stds = np.sqrt(running_sq_sum / count - means**2)
     stds[stds < 1e-8] = 1.0
 
-    # Static channels
+    # Static channels: normalize channels 0-3 (continuous), channel 4 (FVEG) gets identity (mean=0, std=1)
     static = np.array(store["inputs/static"])
-    static_means = np.zeros(4, dtype=np.float64)
-    static_stds = np.zeros(4, dtype=np.float64)
-    for ch in range(4):
+    n_static = static.shape[0]  # 5
+    static_means = np.zeros(n_static, dtype=np.float64)
+    static_stds = np.ones(n_static, dtype=np.float64)
+    for ch in range(min(4, n_static)):  # only normalize continuous channels 0-3
         vals = static[ch][valid_mask]
         static_means[ch] = vals.mean()
         static_stds[ch] = vals.std()
         if static_stds[ch] < 1e-8:
             static_stds[ch] = 1.0
+    # Channel 4 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
 
     # Target stats
     target_names = ["pet", "pck", "aet", "cwd"]

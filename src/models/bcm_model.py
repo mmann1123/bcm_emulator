@@ -31,10 +31,22 @@ class BCMEmulator(nn.Module):
     PCK_PREV_IDX = 7
     AET_PREV_IDX = 8
 
-    def __init__(self, backbone_cfg: Optional[dict] = None):
+    def __init__(
+        self,
+        backbone_cfg: Optional[dict] = None,
+        num_fveg_classes: int = 0,
+        fveg_embed_dim: int = 8,
+    ):
         super().__init__()
         if backbone_cfg is None:
             backbone_cfg = {}
+
+        self.num_fveg_classes = num_fveg_classes
+        self.fveg_embed_dim = fveg_embed_dim if num_fveg_classes > 0 else 0
+
+        # FVEG vegetation embedding
+        if num_fveg_classes > 0:
+            self.fveg_embedding = nn.Embedding(num_fveg_classes, fveg_embed_dim)
 
         self.backbone = TCNBackbone(**backbone_cfg)
         bb_out = self.backbone.out_channels
@@ -46,12 +58,22 @@ class BCMEmulator(nn.Module):
         # Stage 3 head: takes backbone + PET + PCK
         self.aet_head = AETHead(bb_out + 2)
 
+    def _prepend_fveg(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor]) -> torch.Tensor:
+        """Concatenate FVEG embedding to input tensor if fveg is configured."""
+        if self.num_fveg_classes > 0 and fveg_ids is not None:
+            B, C, T = x.shape
+            fveg_embed = self.fveg_embedding(fveg_ids)        # (B, embed_dim)
+            fveg_tiled = fveg_embed.unsqueeze(-1).expand(-1, -1, T)  # (B, embed_dim, T)
+            x = torch.cat([x, fveg_tiled], dim=1)             # (B, C+embed_dim, T)
+        return x
+
     def forward(
         self,
         x: torch.Tensor,
         tf_ratio: float = 1.0,
         gt_pck_prev: Optional[torch.Tensor] = None,
         gt_aet_prev: Optional[torch.Tensor] = None,
+        fveg_ids: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """Forward pass with optional teacher forcing.
 
@@ -61,7 +83,7 @@ class BCMEmulator(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Shape (B, 13, T). Input features.
+            Shape (B, 13, T). Input features (9 dynamic + 4 continuous static).
         tf_ratio : float
             Fraction of timesteps using ground-truth for pck_prev/aet_prev.
             1.0 = all GT (teacher forcing), 0.0 = all predicted.
@@ -69,6 +91,8 @@ class BCMEmulator(nn.Module):
             Shape (B, 1, T). Ground-truth PCK(t-1) for teacher forcing.
         gt_aet_prev : torch.Tensor, optional
             Shape (B, 1, T). Ground-truth AET(t-1) for teacher forcing.
+        fveg_ids : torch.Tensor, optional
+            Shape (B,). Integer FVEG class IDs for vegetation embedding.
 
         Returns
         -------
@@ -79,13 +103,14 @@ class BCMEmulator(nn.Module):
 
         if tf_ratio >= 1.0 or gt_pck_prev is None or gt_aet_prev is None:
             # Full parallel forward -- no autoregressive loop needed
-            return self._forward_parallel(x)
+            return self._forward_parallel(x, fveg_ids)
         else:
             # Autoregressive with scheduled sampling
-            return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev)
+            return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids)
 
-    def _forward_parallel(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def _forward_parallel(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """Parallel forward pass (no teacher forcing substitution)."""
+        x = self._prepend_fveg(x, fveg_ids)
         features = self.backbone(x)
 
         pet = self.pet_head(features)
@@ -105,6 +130,7 @@ class BCMEmulator(nn.Module):
         tf_ratio: float,
         gt_pck_prev: torch.Tensor,
         gt_aet_prev: torch.Tensor,
+        fveg_ids: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """Autoregressive forward with scheduled sampling.
 
@@ -136,7 +162,8 @@ class BCMEmulator(nn.Module):
 
             # Run backbone on sequence up to t+1 (causal, so only sees <=t)
             # For efficiency, run on full sequence but only take output at t
-            features = self.backbone(x_buf[:, :, :t + 1])
+            x_slice = self._prepend_fveg(x_buf[:, :, :t + 1], fveg_ids)
+            features = self.backbone(x_slice)
 
             # Take features at timestep t
             feat_t = features[:, :, -1:]  # (B, C_bb, 1)

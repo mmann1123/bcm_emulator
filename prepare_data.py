@@ -27,7 +27,7 @@ def main():
         "--steps",
         nargs="+",
         default=["all"],
-        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "zarr"],
+        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "fveg", "zarr"],
         help="Which steps to run",
     )
     args = parser.parse_args()
@@ -110,7 +110,19 @@ def main():
             bcm_profile=bcm_profile,
         )
 
-    # Step 6: Build zarr store
+    # Step 6: Download and rasterize FVEG (FRAP CWHR vegetation)
+    if run_all or "fveg" in steps:
+        logger.info("=== Downloading and rasterizing FVEG ===")
+        from src.data.download_fveg import download_fveg
+
+        fveg_results = download_fveg(
+            out_dir=cfg.paths.fveg_dir,
+            bcm_profile=bcm_profile,
+        )
+        for key, path in fveg_results.items():
+            logger.info(f"  {key}: {path}")
+
+    # Step 7: Build zarr store
     if run_all or "zarr" in steps:
         logger.info("=== Building zarr store ===")
         from src.data.preprocessing import build_zarr_store
@@ -123,6 +135,7 @@ def main():
             prism_dir=cfg.paths.prism_monthly_dir,
             topo_solar_path=cfg.paths.topo_solar_path,
             elevation_path=cfg.paths.elevation_path,
+            fveg_dir=cfg.paths.fveg_dir,
             bcm_profile=bcm_profile,
             time_range=(cfg.temporal.train_start, cfg.temporal.test_end),
             snow_threshold=cfg.data.snow_threshold_celsius,

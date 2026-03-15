@@ -58,8 +58,8 @@ class BCMPixelDataset(Dataset):
         if normalize:
             self.dyn_mean = np.array(store["norm/dynamic_mean"])  # (9,)
             self.dyn_std = np.array(store["norm/dynamic_std"])
-            self.stat_mean = np.array(store["norm/static_mean"])  # (4,)
-            self.stat_std = np.array(store["norm/static_std"])
+            self.stat_mean = np.array(store["norm/static_mean"])[:4]  # (4,) continuous only
+            self.stat_std = np.array(store["norm/static_std"])[:4]
             self.tgt_mean = np.array(store["norm/target_mean"])  # (4,)
             self.tgt_std = np.array(store["norm/target_std"])
 
@@ -85,9 +85,11 @@ class BCMPixelDataset(Dataset):
             if (t + 1) % 100 == 0:
                 logger.info(f"  Dynamic: {t+1}/{T_load} timesteps loaded")
 
-        # Static inputs: (N_pixels, 4)
-        static_full = np.array(store["inputs/static"])  # (4, H, W)
-        self._static = static_full[:, rows, cols].T.astype(np.float32)  # (N_pixels, 4)
+        # Static inputs: (N_pixels, 5) — split continuous (0-3) from FVEG class ID (4)
+        static_full = np.array(store["inputs/static"])  # (5, H, W)
+        static_all = static_full[:, rows, cols].T.astype(np.float32)  # (N_pixels, 5)
+        self._static = static_all[:, :4]  # (N_pixels, 4) — continuous static
+        self._fveg_ids = static_all[:, 4].astype(np.int64)  # (N_pixels,) — integer class IDs
 
         # Targets: (N_pixels, T_load, 4) for pet, pck, aet, cwd
         target_names = ["pet", "pck", "aet", "cwd"]
@@ -166,6 +168,7 @@ class BCMPixelDataset(Dataset):
             },
             "gt_pck_prev": torch.tensor(gt_pck_prev, dtype=torch.float32),
             "gt_aet_prev": torch.tensor(gt_aet_prev, dtype=torch.float32),
+            "fveg_id": torch.tensor(self._fveg_ids[pixel_idx], dtype=torch.long),
         }
         return result
 

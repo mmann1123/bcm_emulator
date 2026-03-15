@@ -28,6 +28,12 @@ def main():
         default="checkpoints/best_model.pt",
         help="Path to model checkpoint",
     )
+    parser.add_argument(
+        "--fveg-source",
+        choices=["partveg", "full"],
+        default="partveg",
+        help="FVEG source: 'partveg' (zarr default, filtered) or 'full' (all pixels classified)",
+    )
     args = parser.parse_args()
 
     from src.utils.config import load_config
@@ -45,7 +51,21 @@ def main():
         "kernel_size": cfg.model.backbone.kernel_size,
         "dropout": cfg.model.backbone.dropout,
     }
-    model = BCMEmulator(backbone_cfg=backbone_cfg)
+
+    # FVEG embedding config
+    store = zarr.open(cfg.paths.zarr_store, mode="r")
+    num_fveg_classes = 0
+    fveg_embed_dim = 8
+    if "meta/fveg_num_classes" in store:
+        num_fveg_classes = int(np.array(store["meta/fveg_num_classes"])[0])
+    if hasattr(cfg.model, "fveg"):
+        fveg_embed_dim = getattr(cfg.model.fveg, "embed_dim", 8)
+
+    model = BCMEmulator(
+        backbone_cfg=backbone_cfg,
+        num_fveg_classes=num_fveg_classes,
+        fveg_embed_dim=fveg_embed_dim,
+    )
 
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
@@ -55,7 +75,6 @@ def main():
     logger.info(f"Loaded checkpoint from epoch {ckpt['epoch']+1}, val_loss={ckpt['val_loss']:.4f}")
 
     # Load data
-    store = zarr.open(cfg.paths.zarr_store, mode="r")
     from src.data.splits import get_time_splits, get_pixel_indices
     from src.data.dataset import BCMPixelDataset
 
@@ -94,12 +113,29 @@ def main():
         normalize=True,
     )
 
+    # Override FVEG IDs with fullveg (unfiltered) for inference
+    if args.fveg_source == "full":
+        import rasterio
+        fveg_full_path = Path(cfg.paths.fveg_dir) / "fveg_full.tif"
+        if fveg_full_path.exists():
+            with rasterio.open(fveg_full_path) as src:
+                fveg_full = src.read(1)
+            rows = pixel_indices[:, 0]
+            cols = pixel_indices[:, 1]
+            test_dataset._fveg_ids = fveg_full[rows, cols].astype(np.int64)
+            logger.info(f"Overriding FVEG with fullveg: "
+                        f"{np.count_nonzero(test_dataset._fveg_ids)}/{len(test_dataset._fveg_ids)} "
+                        f"pixels have vegetation class")
+        else:
+            logger.warning(f"Fullveg raster not found at {fveg_full_path}, using partveg from zarr")
+
     from torch.utils.data import DataLoader
 
     def collate_fn(batch):
         inputs = torch.stack([b["inputs"] for b in batch])
         gt_pck = torch.stack([b["gt_pck_prev"] for b in batch])
         gt_aet = torch.stack([b["gt_aet_prev"] for b in batch])
+        fveg_ids = torch.stack([b["fveg_id"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
@@ -108,6 +144,7 @@ def main():
             "targets": targets,
             "gt_pck_prev": gt_pck,
             "gt_aet_prev": gt_aet,
+            "fveg_ids": fveg_ids,
         }
 
     test_loader = DataLoader(
@@ -124,9 +161,10 @@ def main():
             inputs = batch["inputs"].to(device)
             gt_pck_prev = batch["gt_pck_prev"].to(device)
             gt_aet_prev = batch["gt_aet_prev"].to(device)
+            fveg_ids = batch["fveg_ids"].to(device)
 
             # Autoregressive inference (tf_ratio=0.0)
-            preds = model(inputs, tf_ratio=0.0, gt_pck_prev=gt_pck_prev, gt_aet_prev=gt_aet_prev)
+            preds = model(inputs, tf_ratio=0.0, gt_pck_prev=gt_pck_prev, gt_aet_prev=gt_aet_prev, fveg_ids=fveg_ids)
 
             B = inputs.shape[0]
             for b in range(B):
@@ -147,7 +185,8 @@ def main():
                     predicted["pet"][:, row, col],
                 )
 
-                    # Denormalize targets
+                # Denormalize targets
+                for i, var in enumerate(["pet", "pck", "aet", "cwd"]):
                     tgt_val = batch["targets"][var][b, 0].cpu().numpy()
                     tgt_val = tgt_val * tgt_std[i] + tgt_mean[i]
                     observed[var][:, row, col] = tgt_val

@@ -84,6 +84,7 @@ def main():
         inputs = torch.stack([b["inputs"] for b in batch])
         gt_pck = torch.stack([b["gt_pck_prev"] for b in batch])
         gt_aet = torch.stack([b["gt_aet_prev"] for b in batch])
+        fveg_ids = torch.stack([b["fveg_id"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
@@ -92,6 +93,7 @@ def main():
             "targets": targets,
             "gt_pck_prev": gt_pck,
             "gt_aet_prev": gt_aet,
+            "fveg_ids": fveg_ids,
         }
 
     train_loader = DataLoader(
@@ -124,7 +126,20 @@ def main():
         "kernel_size": cfg.model.backbone.kernel_size,
         "dropout": cfg.model.backbone.dropout,
     }
-    model = BCMEmulator(backbone_cfg=backbone_cfg)
+
+    # FVEG embedding config
+    num_fveg_classes = 0
+    fveg_embed_dim = 8
+    if "meta/fveg_num_classes" in store:
+        num_fveg_classes = int(np.array(store["meta/fveg_num_classes"])[0])
+    if hasattr(cfg.model, "fveg"):
+        fveg_embed_dim = getattr(cfg.model.fveg, "embed_dim", 8)
+
+    model = BCMEmulator(
+        backbone_cfg=backbone_cfg,
+        num_fveg_classes=num_fveg_classes,
+        fveg_embed_dim=fveg_embed_dim,
+    )
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model parameters: {n_params:,}")

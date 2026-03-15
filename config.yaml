@@ -11,6 +11,7 @@ paths:
   zarr_store: /home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr
   topo_solar_path: /home/mmann1123/extra_space/bcm_emulator/data/topo_solar.tif
   ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
+  fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
 
@@ -33,7 +34,7 @@ temporal:
 data:
   pixel_subsample_frac: 0.50
   elevation_bins: 5
-  batch_size: 1024
+  batch_size: 512
   num_workers: 8
   snow_threshold_celsius: 0.0
   snow_transition_width: 2.0
@@ -41,10 +42,12 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 13  # 9 dynamic + 4 static
+    in_channels: 21  # 9 dynamic + 4 static + 8 fveg embedding
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
+  fveg:
+    embed_dim: 8
   heads:
     pet:
       in_channels: 256
