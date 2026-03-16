@@ -14,7 +14,7 @@ class TCNBackbone(nn.Module):
     Parameters
     ----------
     in_channels : int
-        Number of input channels (13 for BCM emulator).
+        Number of input channels (23 for BCM emulator: 10 dyn + 5 static + 8 fveg).
     channels : list of int
         Channel sizes for each level, default [64, 128, 128, 256, 256].
     kernel_size : int
