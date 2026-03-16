@@ -1,43 +1,106 @@
-# BCM Emulator - Claude Code Instructions
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Environment
 
-Always use the `deep_field` conda environment for running scripts:
+Always use the `deep_field` conda environment:
 
 ```bash
 conda run -n deep_field python <script.py>
 ```
 
-## Project Structure
+## Commands
 
-- `prepare_data.py` — Data pipeline orchestration (download, preprocess, build zarr)
-- `train.py` — Training entry point
-- `evaluate.py` — Evaluation entry point
-- `config.yaml` — All paths, hyperparameters, and settings
-- `src/data/` — Dataset, preprocessing, download modules
-- `src/models/` — Model architecture
-- `src/training/` — Trainer, losses, teacher forcing
-- `src/utils/` — Config, I/O helpers, topo solar
+```bash
+# Data pipeline (individual steps or "all")
+conda run -n deep_field python prepare_data.py --steps sciencebase pck_gap prism_daily srad topo_solar fveg awc zarr
+
+# Training (always tag with --run-id and --notes)
+conda run -n deep_field python train.py --run-id v3-vpd-awc --notes "Added VPD dynamic input + POLARIS AWC static input"
+
+# Evaluation
+conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v3-vpd-awc
+
+# Compare snapshots
+conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v2-fveg-srad-fix', 'v3-vpd-awc', project_root='.')"
+```
+
+No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and spatial NSE maps serve as the validation mechanism.
+
+## Architecture
+
+**Three-stage hierarchical TCN** predicting monthly water balance variables on a 1km California grid (EPSG:3310, 1209x941 pixels).
+
+### Data flow
+
+```
+prepare_data.py (downloads + zarr build)
+    → data/bcm_dataset.zarr
+        /inputs/dynamic   (T, 10, H, W)  - monthly climate
+        /inputs/static    (6, H, W)      - terrain + soil + vegetation
+        /targets/{pet,pck,aet,cwd}  (T, H, W)
+        /norm/*           - per-channel z-score stats
+
+train.py → BCMPixelDataset (pixel time-series from zarr)
+    → BCMTrainer (AMP, cosine schedule, teacher forcing curriculum)
+        → checkpoints/best_model.pt
+
+evaluate.py → autoregressive inference (tf_ratio=0.0)
+    → outputs/metrics.json, spatial_maps/nse_*.tif
+    → snapshots/{run_id}/ (frozen config + model + metrics)
+```
+
+### Model (src/models/bcm_model.py)
+
+```
+Input: (B, 15, T) → _prepend_fveg → (B, 23, T)
+  15 = 10 dynamic + 5 continuous static
+  23 = 15 + 8 FVEG embedding
+
+Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
+          Receptive field: 125 months. Output: (B, 256, T)
+
+Stage 2: PET head (256→1, softplus) + PCK head (256→1, softplus)
+
+Stage 3: AET head ([256+PET+PCK]=258 → 64 → 1)
+          AET ≤ PET enforced post-denormalization, not in the head
+
+CWD = PET - AET (algebraic, no parameters)
+```
+
+Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between ground-truth and model predictions via `BCMEmulator.PCK_PREV_IDX` / `AET_PREV_IDX`. Curriculum: 100% GT for first half of training, then linear ramp to 100% predicted.
+
+### Input channels
+
+**Dynamic (10):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
+
+**Static (6):** elev, topo_solar, lat, lon, awc, fveg_class_id
+- Channels 0-4 are continuous (z-score normalized)
+- Channel 5 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
+
+### Dataset (src/data/dataset.py)
+
+`BCMPixelDataset` preloads all selected pixels into RAM. Channel counts (`n_dyn`, `n_static_cont`) are read dynamically from zarr shape — no hardcoded values. The dataset outputs `(n_dyn + n_static_cont, seq_len)` tensors; FVEG IDs are passed separately.
+
+`EcoregionStratifiedSampler` balances sampling across L3 ecoregions.
+
+### Preprocessing (src/data/preprocessing.py)
+
+`build_zarr_store()` is the central function: reads all rasters, aligns to BCM grid via `_read_and_align()`, computes derived features (snow_frac, vpd), fills lagged targets (pck_prev, aet_prev), and computes normalization stats. Key helper: `_read_and_align()` auto-detects CRS mismatch and reprojects with rasterio.
+
+### Snapshot system (src/utils/snapshot.py)
+
+Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, metrics), config.yaml, best_model.pt, training_history.json, metrics.json, spatial_maps/. `compare_snapshots()` diffs metrics between runs.
+
+## Configuration
+
+All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
+
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 5 static + 8 fveg embed = 23), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Development Practices
 
-- One-off bash/python commands are fine for **testing and exploration**, but all production data processing steps must live in the project scripts (e.g., `src/data/`, `prepare_data.py`) so they are documented, reproducible, and can be written up later. Do not leave critical processing steps as ad-hoc shell commands.
-
-## Training & Evaluation (v3-vpd-awc)
-
-Run all commands with the `deep_field` conda environment. Always tag runs with `--run-id` and `--notes` for reproducibility.
-
-```bash
-# 1. Download AWC from POLARIS
-conda run -n deep_field python prepare_data.py --steps awc
-
-# 2. Rebuild zarr (VPD computed during build, AWC loaded as static)
-conda run -n deep_field python prepare_data.py --steps zarr
-
-# 3. Train v3
-conda run -n deep_field python train.py --run-id v3-vpd-awc --notes "Added VPD dynamic input + POLARIS AWC static input"
-
-# 4. Evaluate and compare
-conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v3-vpd-awc
-conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v2-fveg-srad-fix', 'v3-vpd-awc', project_root='.')"
-```
+- All production data processing must be in project scripts (`src/data/`, `prepare_data.py`), not ad-hoc shell commands.
+- Always tag training runs with `--run-id` and `--notes` for reproducibility.
+- When adding new input channels: update zarr shape in `preprocessing.py`, add normalization in `_compute_norm_stats`, verify `dataset.py` reads counts dynamically, update `config.yaml` `in_channels`.

@@ -228,13 +228,25 @@ def _mosaic_tiles(tile_paths: List[Path], out_path: Path) -> None:
         compress="lzw",
     )
 
+    # Validate mosaic has actual data (not all nodata)
+    nodata_val = profile.get("nodata", -9999.0)
+    if nodata_val is not None:
+        n_valid = np.sum(mosaic[0] != nodata_val)
+    else:
+        n_valid = np.sum(~np.isnan(mosaic[0]))
+    if n_valid == 0:
+        for ds in datasets:
+            ds.close()
+        raise RuntimeError(f"Mosaic has zero valid pixels — likely corrupt tiles. "
+                           f"Delete {out_path} and re-run.")
+
     with rasterio.open(str(out_path), "w", **profile) as dst:
         dst.write(mosaic)
 
     for ds in datasets:
         ds.close()
 
-    logger.info(f"  Mosaic: {mosaic.shape[1]}x{mosaic.shape[2]} pixels")
+    logger.info(f"  Mosaic: {mosaic.shape[1]}x{mosaic.shape[2]} pixels, {n_valid:,} valid")
 
 
 def _compute_layer_awc(
@@ -270,8 +282,12 @@ def _compute_layer_awc(
     with rasterio.open(str(out_path), "w", **profile) as dst:
         dst.write(awc[np.newaxis, :])
 
-    logger.info(f"  Layer AWC ({thickness_cm}cm): mean={awc[valid].mean():.1f} mm, "
-                f"range=[{awc[valid].min():.1f}, {awc[valid].max():.1f}]")
+    n_valid = valid.sum()
+    if n_valid > 0:
+        logger.info(f"  Layer AWC ({thickness_cm}cm): mean={awc[valid].mean():.1f} mm, "
+                    f"range=[{awc[valid].min():.1f}, {awc[valid].max():.1f}]")
+    else:
+        logger.warning(f"  Layer AWC ({thickness_cm}cm): no valid pixels!")
 
 
 def _sum_layers(layer_paths: List[Path], out_path: Path) -> None:
