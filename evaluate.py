@@ -292,6 +292,55 @@ def main():
         else:
             logger.warning(f"Snapshot directory {snap_dir} not found. Run create_snapshot first.")
 
+    # NSE-by-ecoregion plot
+    if args.run_id:
+        logger.info("Generating NSE-by-ecoregion box plots...")
+        from scripts.nse_by_ecoregion import generate_nse_by_ecoregion
+
+        project_root = Path(cfg.paths.zarr_store).parent.parent
+        eco_raster = getattr(cfg.paths, "eco_raster",
+                             "/home/mmann1123/extra_space/Regions/ca_eco_l3.tif")
+
+        # Find the most recent previous snapshot for comparison
+        snap_base = project_root / "snapshots"
+        all_snaps = sorted(
+            [d.name for d in snap_base.iterdir()
+             if d.is_dir() and (d / "manifest.json").exists() and d.name != args.run_id],
+            key=lambda sid: json.loads((snap_base / sid / "manifest.json").read_text()).get("created", ""),
+        )
+        snap_ids = [all_snaps[-1], args.run_id] if all_snaps else [args.run_id]
+
+        eco_output = output_dir / "nse_by_ecoregion.png"
+        generate_nse_by_ecoregion(
+            snapshot_ids=snap_ids,
+            project_root=str(project_root),
+            eco_raster=eco_raster,
+            output_path=str(eco_output),
+        )
+        # Also copy to snapshot dir
+        snap_dir = snap_base / args.run_id
+        if snap_dir.exists() and eco_output.exists():
+            import shutil
+            shutil.copy2(eco_output, snap_dir / "nse_by_ecoregion.png")
+
+    # Snapshot comparison with most recent previous run
+    if args.run_id:
+        from src.utils.snapshot import compare_snapshots
+
+        project_root = Path(cfg.paths.zarr_store).parent.parent
+        snap_base = project_root / "snapshots"
+        all_snaps = sorted(
+            [d.name for d in snap_base.iterdir()
+             if d.is_dir() and (d / "manifest.json").exists() and d.name != args.run_id],
+            key=lambda sid: json.loads((snap_base / sid / "manifest.json").read_text()).get("created", ""),
+        )
+        if all_snaps:
+            prev_id = all_snaps[-1]
+            logger.info(f"Comparing snapshots: {prev_id} vs {args.run_id}")
+            compare_snapshots(prev_id, args.run_id, project_root=str(project_root))
+        else:
+            logger.info("No previous snapshot found for comparison")
+
     logger.info("Evaluation complete.")
 
 

@@ -17,9 +17,9 @@ class BCMEmulator(nn.Module):
     Stage 3: AET predicted unconstrained (AET <= PET enforced post-denorm).
              CWD = PET - AET (algebraic, no parameters).
 
-    Input channels (15 continuous + 8 FVEG embed = 23 total):
+    Input channels (17 continuous + 8 FVEG embed = 25 total):
         Dynamic (10): ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
-        Static (5): elevation, topo_solar, lat, lon, awc (tiled across T)
+        Static (7): elevation, topo_solar, lat, lon, ksat, sand, clay (tiled across T)
         FVEG embedding (8): from vegetation class ID lookup
 
     Parameters
@@ -84,7 +84,7 @@ class BCMEmulator(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Shape (B, 15, T). Input features (10 dynamic + 5 continuous static).
+            Shape (B, 17, T). Input features (10 dynamic + 7 continuous static).
         tf_ratio : float
             Fraction of timesteps using ground-truth for pck_prev/aet_prev.
             1.0 = all GT (teacher forcing), 0.0 = all predicted.

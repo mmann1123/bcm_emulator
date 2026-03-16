@@ -1,4 +1,4 @@
-"""BCM multi-task loss with uniform weights."""
+"""BCM multi-task loss with configurable scheduled weights."""
 
 from typing import Dict
 
@@ -7,18 +7,41 @@ import torch.nn as nn
 
 
 class BCMMultiLoss(nn.Module):
-    """Uniform-weighted MSE loss across PET, PCK, AET, CWD.
+    """Weighted MSE loss across PET, PCK, AET, CWD with optional PET decay schedule.
 
-    Loss = MSE(PET) + MSE(PCK) + MSE(AET) + MSE(CWD)
+    Loss = w_pet*MSE(PET) + w_pck*MSE(PCK) + w_aet*MSE(AET) + w_cwd*MSE(CWD)
     """
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        pet_initial: float = 1.0,
+        pck_initial: float = 1.0,
+        aet_initial: float = 2.0,
+        cwd_initial: float = 2.0,
+        pet_decay: float = 1.0,
+        pet_floor: float = 0.5,
+        total_epochs: int = 100,
+        **kwargs,
+    ):
         super().__init__()
         self.mse = nn.MSELoss()
+        self.pet_initial = pet_initial
+        self.pck_initial = pck_initial
+        self.aet_initial = aet_initial
+        self.cwd_initial = cwd_initial
+        self.pet_decay = pet_decay
+        self.pet_floor = pet_floor
+        self.total_epochs = total_epochs
 
     def get_weights(self, epoch: int) -> Dict[str, float]:
-        """Get loss weights (uniform)."""
-        return {"pet": 1.0, "pck": 1.0, "aet": 1.0, "cwd": 1.0}
+        """Get loss weights for given epoch. PET decays; others are constant."""
+        pet_w = max(self.pet_initial * (self.pet_decay ** epoch), self.pet_floor)
+        return {
+            "pet": pet_w,
+            "pck": self.pck_initial,
+            "aet": self.aet_initial,
+            "cwd": self.cwd_initial,
+        }
 
     def forward(
         self,

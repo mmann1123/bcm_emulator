@@ -14,7 +14,7 @@ conda run -n deep_field python <script.py>
 
 ```bash
 # Data pipeline (individual steps or "all")
-conda run -n deep_field python prepare_data.py --steps sciencebase pck_gap prism_daily srad topo_solar fveg awc zarr
+conda run -n deep_field python prepare_data.py --steps sciencebase pck_gap prism_daily srad topo_solar fveg soil zarr
 
 # Training (always tag with --run-id and --notes)
 conda run -n deep_field python train.py --run-id v3-vpd-awc --notes "Added VPD dynamic input + POLARIS AWC static input"
@@ -38,7 +38,7 @@ No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and
 prepare_data.py (downloads + zarr build)
     → data/bcm_dataset.zarr
         /inputs/dynamic   (T, 10, H, W)  - monthly climate
-        /inputs/static    (6, H, W)      - terrain + soil + vegetation
+        /inputs/static    (10, H, W)     - terrain + soil + vegetation
         /targets/{pet,pck,aet,cwd}  (T, H, W)
         /norm/*           - per-channel z-score stats
 
@@ -54,9 +54,9 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 15, T) → _prepend_fveg → (B, 23, T)
-  15 = 10 dynamic + 5 continuous static
-  23 = 15 + 8 FVEG embedding
+Input: (B, 19, T) → _prepend_fveg → (B, 27, T)
+  19 = 10 dynamic + 9 continuous static
+  27 = 19 + 8 FVEG embedding
 
 Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
           Receptive field: 125 months. Output: (B, 256, T)
@@ -75,9 +75,9 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 **Dynamic (10):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
 
-**Static (6):** elev, topo_solar, lat, lon, awc, fveg_class_id
-- Channels 0-4 are continuous (z-score normalized)
-- Channel 5 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
+**Static (10):** elev, topo_solar, lat, lon, ksat, sand, clay, awc, windward_index, fveg_class_id
+- Channels 0-8 are continuous (z-score normalized)
+- Channel 9 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
 
 ### Dataset (src/data/dataset.py)
 
@@ -97,7 +97,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 5 static + 8 fveg embed = 23), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 9 static + 8 fveg embed = 27), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Development Practices
 

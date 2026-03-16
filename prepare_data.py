@@ -28,7 +28,7 @@ def main():
         "--steps",
         nargs="+",
         default=["all"],
-        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "fveg", "awc", "zarr"],
+        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "fveg", "soil", "zarr"],
         help="Which steps to run",
     )
     args = parser.parse_args()
@@ -124,28 +124,23 @@ def main():
         for key, path in fveg_results.items():
             logger.info(f"  {key}: {path}")
 
-    # Step 7: Download POLARIS AWC (Available Water Capacity)
-    if run_all or "awc" in steps:
-        logger.info("=== Downloading POLARIS AWC ===")
-        from src.data.download_awc import download_awc
+    # Step 7: Download POLARIS soil properties (ksat, sand, clay)
+    if run_all or "soil" in steps:
+        logger.info("=== Downloading POLARIS soil properties (ksat, sand, clay) ===")
+        from src.data.download_soil import download_soil_properties
 
-        awc_result = download_awc(
-            out_dir=cfg.paths.awc_dir,
+        soil_results = download_soil_properties(
+            out_dir=cfg.paths.soil_dir,
             bcm_profile=bcm_profile,
             bbox=cfg.download.ca_bbox,
-            polaris_prop=cfg.download.polaris_prop,
-            polaris_stat=cfg.download.polaris_stat,
-            polaris_depth=cfg.download.polaris_depth,
         )
-        logger.info(f"  AWC: {awc_result}")
+        for prop, path in soil_results.items():
+            logger.info(f"  {prop}: {path}")
 
     # Step 8: Build zarr store
     if run_all or "zarr" in steps:
         logger.info("=== Building zarr store ===")
         from src.data.preprocessing import build_zarr_store
-
-        # AWC path: look for the BCM-reprojected file
-        awc_path = str(Path(cfg.paths.awc_dir) / "awc_bcm.tif")
 
         build_zarr_store(
             zarr_path=cfg.paths.zarr_store,
@@ -156,7 +151,8 @@ def main():
             topo_solar_path=cfg.paths.topo_solar_path,
             elevation_path=cfg.paths.elevation_path,
             fveg_dir=cfg.paths.fveg_dir,
-            awc_path=awc_path,
+            soil_dir=cfg.paths.soil_dir,
+            awc_path=getattr(cfg.paths, "awc_path", ""),
             bcm_profile=bcm_profile,
             time_range=(cfg.temporal.train_start, cfg.temporal.test_end),
             snow_threshold=cfg.data.snow_threshold_celsius,

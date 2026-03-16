@@ -48,7 +48,9 @@ def _zarr_fingerprint(zarr_path):
         import zarr
         store = zarr.open(str(zarr_path), mode="r")
         parts = []
-        for key in ["norm/target_mean", "norm/target_std", "norm/input_mean", "norm/input_std"]:
+        for key in ["norm/dynamic_mean", "norm/dynamic_std",
+                    "norm/static_mean", "norm/static_std",
+                    "norm/target_mean", "norm/target_std"]:
             if key in store:
                 arr = np.array(store[key])
                 parts.append(arr.tobytes())

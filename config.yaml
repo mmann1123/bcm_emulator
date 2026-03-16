@@ -13,7 +13,8 @@ paths:
   ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
   fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
   fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
-  awc_dir: /home/mmann1123/extra_space/bcm_emulator/data/awc
+  soil_dir: /home/mmann1123/extra_space/bcm_emulator/data/soil
+  awc_path: /home/mmann1123/extra_space/bcm_emulator/data/awc/awc_bcm.tif
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
   snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
@@ -45,7 +46,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 23  # 10 dynamic + 5 static + 8 fveg embedding
+    in_channels: 27  # 10 dynamic + 9 static + 8 fveg embedding
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
@@ -73,13 +74,12 @@ training:
 
   # Loss weights
   loss_weights:
-    pet_initial: 2.0
-    pck_initial: 2.0
-    aet_initial: 1.0
-    cwd_initial: 0.5
+    pet_initial: 1.0    # PET already performs well
+    pck_initial: 1.0    # PCK already performs well
+    aet_initial: 2.0    # Boost — underperforming in NE
+    cwd_initial: 2.0    # Boost — underperforming on NW coast
     pet_decay: 0.99
     pet_floor: 0.5
-    # PCK weight held at 2.0 during scheduled sampling (no decay)
 
   # Teacher forcing curriculum
   teacher_forcing:
@@ -94,7 +94,5 @@ download:
   sciencebase_pck_item_id: "5f29c62d82cef313ed9edb39"
   srad_source: "terraclimate"
   ca_bbox: [-124.5, 32.5, -114.0, 43.5]  # lon_min, lat_min, lon_max, lat_max (extends into OR to cover full BCM grid)
-  # POLARIS AWC source
-  polaris_prop: "aws0_100"     # available water storage 0-100cm (mm)
+  # POLARIS soil properties (ksat, sand, clay — depth-weighted mean over 0-100cm)
   polaris_stat: "mean"
-  polaris_depth: "0_100"
