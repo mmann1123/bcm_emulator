@@ -40,6 +40,26 @@ def compute_snow_frac(
     return frac
 
 
+def compute_vpd(tmin: np.ndarray, tmax: np.ndarray) -> np.ndarray:
+    """Compute Vapor Pressure Deficit from tmin and tmax using Tetens equation.
+
+    Assumes dewpoint ~ tmin (standard meteorological approximation).
+
+    Parameters
+    ----------
+    tmin, tmax : np.ndarray
+        Temperature arrays in degrees Celsius.
+
+    Returns
+    -------
+    np.ndarray
+        VPD in kPa (clipped to >= 0).
+    """
+    e_sat = 0.6108 * np.exp(17.27 * tmax / (tmax + 237.3))
+    e_act = 0.6108 * np.exp(17.27 * tmin / (tmin + 237.3))
+    return np.maximum(0.0, e_sat - e_act)
+
+
 def build_zarr_store(
     zarr_path: str,
     bcm_dir: str,
@@ -49,6 +69,7 @@ def build_zarr_store(
     topo_solar_path: str,
     elevation_path: str,
     fveg_dir: str = "",
+    awc_path: str = "",
     bcm_profile: dict = None,
     time_range: Tuple[str, str] = ("1980-01", "2020-09"),
     snow_threshold: float = 0.0,
@@ -61,11 +82,11 @@ def build_zarr_store(
         - DAYMET: srad (reprojected to BCM grid)
         - PRISM daily-derived: wet_days, ppt_intensity (reprojected to BCM grid)
         - BCM outputs: aet, cwd, pck (targets, on BCM grid)
-        - Local: elevation, topo_solar, lat, lon (static)
+        - Local: elevation, topo_solar, lat, lon, awc (static)
 
     Zarr structure:
-        /inputs/dynamic    (T, 9, H, W)   - dynamic input channels
-        /inputs/static     (4, H, W)      - static input channels
+        /inputs/dynamic    (T, 10, H, W)  - dynamic input channels
+        /inputs/static     (6, H, W)      - static input channels
         /targets/pet       (T, H, W)
         /targets/pck       (T, H, W)
         /targets/aet       (T, H, W)
@@ -91,14 +112,14 @@ def build_zarr_store(
     # Create zarr store
     store = zarr.open(zarr_path, mode="w")
 
-    # Dynamic inputs: (T, 9, H, W)
-    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev
+    # Dynamic inputs: (T, 10, H, W)
+    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
     dynamic = store.zeros(
-        name="inputs/dynamic", shape=(T, 9, H, W), chunks=(12, 9, H, W), dtype="float32"
+        name="inputs/dynamic", shape=(T, 10, H, W), chunks=(12, 10, H, W), dtype="float32"
     )
 
-    # Static inputs: (5, H, W) -- elev, topo_solar, lat, lon, fveg_class_id
-    static = store.zeros(name="inputs/static", shape=(5, H, W), dtype="float32")
+    # Static inputs: (6, H, W) -- elev, topo_solar, lat, lon, awc, fveg_class_id
+    static = store.zeros(name="inputs/static", shape=(6, H, W), dtype="float32")
 
     # Targets: (T, H, W)
     for var in ["pet", "pck", "aet", "cwd"]:
@@ -141,7 +162,17 @@ def build_zarr_store(
     static[2] = y_norm  # lat (northing)
     static[3] = x_norm  # lon (easting)
 
-    # FVEG (CWHR vegetation class ID) -- channel 4
+    # AWC (Available Water Capacity) -- channel 4
+    awc_file = Path(awc_path) if awc_path else None
+    if awc_file and awc_file.exists():
+        logger.info("Loading AWC raster...")
+        awc_data = _read_and_align(str(awc_file), bcm_profile)
+        awc_data[~valid_mask] = 0.0
+        static[4] = awc_data
+    else:
+        logger.warning("AWC data not found; channel 4 will be zeros")
+
+    # FVEG (CWHR vegetation class ID) -- channel 5
     import json as _json
 
     fveg_dir_path = Path(fveg_dir) if fveg_dir else None
@@ -149,7 +180,7 @@ def build_zarr_store(
         logger.info("Loading FVEG partveg raster...")
         fveg_data = _read_bcm_grid_file(str(fveg_dir_path / "fveg_partveg.tif"))
         fveg_data[np.isnan(fveg_data)] = 0.0
-        static[4] = fveg_data
+        static[5] = fveg_data
 
         # Store FVEG metadata
         classmap_path = fveg_dir_path / "fveg_class_map.json"
@@ -161,7 +192,7 @@ def build_zarr_store(
             store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_info"])
             logger.info(f"FVEG: {num_fveg_classes} classes stored")
     else:
-        logger.warning("FVEG data not found; channel 4 will be zeros")
+        logger.warning("FVEG data not found; channel 5 will be zeros")
 
     # ---- Dynamic inputs and targets ----
     logger.info("Processing dynamic inputs and targets...")
@@ -221,6 +252,11 @@ def build_zarr_store(
             threshold=snow_threshold, transition_width=snow_transition,
         )
         dynamic[t_idx, 6] = snow_frac
+
+        # --- VPD (derived from tmin, tmax) ---
+        vpd = compute_vpd(tmin_data, tmax_data)
+        vpd[~valid_mask] = 0.0
+        dynamic[t_idx, 9] = vpd
 
         # --- Targets: aet, cwd from BCM local outputs ---
         aet_data = None
@@ -329,10 +365,10 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     dynamic = store["inputs/dynamic"]
     T = dynamic.shape[0]
 
-    n_channels = 9
+    n_channels = 10
     channel_names = [
         "ppt", "tmin", "tmax", "wet_days", "ppt_intensity",
-        "srad", "snow_frac", "pck_prev", "aet_prev",
+        "srad", "snow_frac", "pck_prev", "aet_prev", "vpd",
     ]
 
     n_valid = valid_mask.sum()
@@ -355,18 +391,19 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     stds = np.sqrt(running_sq_sum / count - means**2)
     stds[stds < 1e-8] = 1.0
 
-    # Static channels: normalize channels 0-3 (continuous), channel 4 (FVEG) gets identity (mean=0, std=1)
+    # Static channels: normalize channels 0-4 (continuous: elev, topo_solar, lat, lon, awc)
+    # Channel 5 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
     static = np.array(store["inputs/static"])
-    n_static = static.shape[0]  # 5
+    n_static = static.shape[0]  # 6
     static_means = np.zeros(n_static, dtype=np.float64)
     static_stds = np.ones(n_static, dtype=np.float64)
-    for ch in range(min(4, n_static)):  # only normalize continuous channels 0-3
+    for ch in range(min(5, n_static)):  # normalize continuous channels 0-4
         vals = static[ch][valid_mask]
         static_means[ch] = vals.mean()
         static_stds[ch] = vals.std()
         if static_stds[ch] < 1e-8:
             static_stds[ch] = 1.0
-    # Channel 4 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
+    # Channel 5 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
 
     # Target stats
     target_names = ["pet", "pck", "aet", "cwd"]

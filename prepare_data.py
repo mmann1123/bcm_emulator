@@ -12,6 +12,7 @@ Data sources:
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +28,7 @@ def main():
         "--steps",
         nargs="+",
         default=["all"],
-        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "fveg", "zarr"],
+        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "fveg", "awc", "zarr"],
         help="Which steps to run",
     )
     args = parser.parse_args()
@@ -123,10 +124,28 @@ def main():
         for key, path in fveg_results.items():
             logger.info(f"  {key}: {path}")
 
-    # Step 7: Build zarr store
+    # Step 7: Download POLARIS AWC (Available Water Capacity)
+    if run_all or "awc" in steps:
+        logger.info("=== Downloading POLARIS AWC ===")
+        from src.data.download_awc import download_awc
+
+        awc_result = download_awc(
+            out_dir=cfg.paths.awc_dir,
+            bcm_profile=bcm_profile,
+            bbox=cfg.download.ca_bbox,
+            polaris_prop=cfg.download.polaris_prop,
+            polaris_stat=cfg.download.polaris_stat,
+            polaris_depth=cfg.download.polaris_depth,
+        )
+        logger.info(f"  AWC: {awc_result}")
+
+    # Step 8: Build zarr store
     if run_all or "zarr" in steps:
         logger.info("=== Building zarr store ===")
         from src.data.preprocessing import build_zarr_store
+
+        # AWC path: look for the BCM-reprojected file
+        awc_path = str(Path(cfg.paths.awc_dir) / "awc_bcm.tif")
 
         build_zarr_store(
             zarr_path=cfg.paths.zarr_store,
@@ -137,6 +156,7 @@ def main():
             topo_solar_path=cfg.paths.topo_solar_path,
             elevation_path=cfg.paths.elevation_path,
             fveg_dir=cfg.paths.fveg_dir,
+            awc_path=awc_path,
             bcm_profile=bcm_profile,
             time_range=(cfg.temporal.train_start, cfg.temporal.test_end),
             snow_threshold=cfg.data.snow_threshold_celsius,

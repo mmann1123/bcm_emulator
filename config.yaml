@@ -13,6 +13,7 @@ paths:
   ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
   fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
   fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
+  awc_dir: /home/mmann1123/extra_space/bcm_emulator/data/awc
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
   snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
@@ -44,7 +45,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 21  # 9 dynamic + 4 static + 8 fveg embedding
+    in_channels: 23  # 10 dynamic + 5 static + 8 fveg embedding
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
@@ -93,3 +94,7 @@ download:
   sciencebase_pck_item_id: "5f29c62d82cef313ed9edb39"
   srad_source: "terraclimate"
   ca_bbox: [-124.5, 32.5, -114.0, 43.5]  # lon_min, lat_min, lon_max, lat_max (extends into OR to cover full BCM grid)
+  # POLARIS AWC source
+  polaris_prop: "aws0_100"     # available water storage 0-100cm (mm)
+  polaris_stat: "mean"
+  polaris_depth: "0_100"

@@ -17,9 +17,10 @@ class BCMEmulator(nn.Module):
     Stage 3: AET predicted unconstrained (AET <= PET enforced post-denorm).
              CWD = PET - AET (algebraic, no parameters).
 
-    Input channels (13 total):
-        Dynamic (9): ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev
-        Static (4): elevation, topo_solar, lat, lon (tiled across T)
+    Input channels (15 continuous + 8 FVEG embed = 23 total):
+        Dynamic (10): ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
+        Static (5): elevation, topo_solar, lat, lon, awc (tiled across T)
+        FVEG embedding (8): from vegetation class ID lookup
 
     Parameters
     ----------

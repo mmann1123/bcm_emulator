@@ -155,7 +155,7 @@ class BCMTrainer:
         n_batches = 0
 
         for batch in self.train_loader:
-            inputs = batch["inputs"].to(self.device)         # (B, 13, T)
+            inputs = batch["inputs"].to(self.device)         # (B, 15, T)
             targets = {k: batch["targets"][k].to(self.device) for k in batch["targets"]}
             gt_pck_prev = batch.get("gt_pck_prev")
             gt_aet_prev = batch.get("gt_aet_prev")
