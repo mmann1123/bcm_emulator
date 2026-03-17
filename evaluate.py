@@ -212,6 +212,18 @@ def main():
         print(f"\n{var.upper()}:")
         for metric, value in metrics[var].items():
             print(f"  {metric:>8s}: {value:>10.4f}")
+    # Extreme-value metrics
+    print("\nEXTREME-VALUE METRICS (AET, CWD)")
+    print("-" * 60)
+    for var in ["aet", "cwd"]:
+        for label in ["p95", "p99"]:
+            key = f"{var}_{label}"
+            m = metrics[key]
+            print(f"  {var.upper()} {label.upper()}: "
+                  f"RMSE={m['rmse']:.3f}  Bias={m['bias']:+.3f}  "
+                  f"Hit-rate={m['exceedance_hit_rate']:.3f}  "
+                  f"(n={m['n_samples']})")
+
     print(f"\nCWD Identity MAE: {metrics['cwd_identity_mae']:.6f}")
     print("=" * 60)
 
@@ -223,7 +235,10 @@ def main():
     metrics_save = {}
     for k, v in metrics.items():
         if isinstance(v, dict):
-            metrics_save[k] = {mk: float(mv) for mk, mv in v.items()}
+            metrics_save[k] = {
+                mk: int(mv) if isinstance(mv, (int, np.integer)) else float(mv)
+                for mk, mv in v.items()
+            }
         else:
             metrics_save[k] = float(v)
 
@@ -255,6 +270,18 @@ def main():
     bcm_profile = get_bcm_reference_profile(cfg.paths.bcm_dir)
 
     save_nse_maps(
+        observed=observed,
+        predicted=predicted,
+        bcm_profile=bcm_profile,
+        valid_mask=valid_mask,
+        output_dir=cfg.paths.output_dir,
+    )
+
+    # Extreme bias maps for AET and CWD
+    logger.info("Generating extreme bias maps...")
+    from src.evaluation.spatial_maps import save_extreme_bias_maps
+
+    save_extreme_bias_maps(
         observed=observed,
         predicted=predicted,
         bcm_profile=bcm_profile,

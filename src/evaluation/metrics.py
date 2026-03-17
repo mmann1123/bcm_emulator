@@ -60,6 +60,63 @@ def cwd_identity_mae(pet: np.ndarray, aet: np.ndarray, cwd: np.ndarray) -> float
     return np.mean(np.abs(pet - aet - cwd))
 
 
+def quantile_metrics(
+    obs: np.ndarray, pred: np.ndarray, quantile: float = 0.95
+) -> Dict[str, float]:
+    """RMSE and mean bias for obs values above the given quantile."""
+    threshold = np.nanpercentile(obs, quantile * 100)
+    mask = obs >= threshold
+    if mask.sum() == 0:
+        return {"rmse": np.nan, "bias": np.nan, "n_samples": 0}
+    return {
+        "rmse": float(np.sqrt(np.mean((obs[mask] - pred[mask]) ** 2))),
+        "bias": float(np.mean(pred[mask] - obs[mask])),
+        "n_samples": int(mask.sum()),
+    }
+
+
+def exceedance_reliability(
+    obs: np.ndarray, pred: np.ndarray, quantile: float = 0.95
+) -> float:
+    """Fraction of observed top-Q% events also in predicted top-Q%."""
+    obs_thresh = np.nanpercentile(obs, quantile * 100)
+    pred_thresh = np.nanpercentile(pred, quantile * 100)
+    obs_extreme = obs >= obs_thresh
+    pred_extreme = pred >= pred_thresh
+    if obs_extreme.sum() == 0:
+        return np.nan
+    return float(np.sum(obs_extreme & pred_extreme) / np.sum(obs_extreme))
+
+
+def compute_pixel_extreme_bias(
+    observed: np.ndarray, predicted: np.ndarray, quantile: float = 0.95
+) -> np.ndarray:
+    """Per-pixel mean bias for months where observed > P_quantile (computed per-pixel).
+
+    Parameters
+    ----------
+    observed : np.ndarray
+        Shape (T, H, W).
+    predicted : np.ndarray
+        Shape (T, H, W).
+    quantile : float
+        Quantile threshold (e.g. 0.95 for P95).
+
+    Returns
+    -------
+    np.ndarray
+        Shape (H, W) with per-pixel mean bias over extreme months.
+    """
+    # Per-pixel threshold: P_quantile of each pixel's time series
+    thresholds = np.nanpercentile(observed, quantile * 100, axis=0)  # (H, W)
+    extreme_mask = observed >= thresholds[np.newaxis, :, :]  # (T, H, W)
+    residuals = predicted - observed  # (T, H, W)
+    with np.errstate(invalid="ignore"):
+        residuals_masked = np.where(extreme_mask, residuals, np.nan)
+        bias_map = np.nanmean(residuals_masked, axis=0)  # (H, W)
+    return bias_map
+
+
 def compute_all_metrics(
     observed: Dict[str, np.ndarray],
     predicted: Dict[str, np.ndarray],
@@ -95,6 +152,24 @@ def compute_all_metrics(
             "rmse": rmse(obs, pred),
             "pbias": percent_bias(obs, pred),
         }
+
+    # Quantile metrics and exceedance reliability for AET and CWD
+    for var in ["aet", "cwd"]:
+        obs = observed[var].ravel()
+        pred = predicted[var].ravel()
+        valid = ~(np.isnan(obs) | np.isnan(pred))
+        obs = obs[valid]
+        pred = pred[valid]
+
+        for q, label in [(0.95, "p95"), (0.99, "p99")]:
+            qm = quantile_metrics(obs, pred, quantile=q)
+            er = exceedance_reliability(obs, pred, quantile=q)
+            results[f"{var}_{label}"] = {
+                "rmse": qm["rmse"],
+                "bias": qm["bias"],
+                "n_samples": qm["n_samples"],
+                "exceedance_hit_rate": er,
+            }
 
     # CWD identity check
     results["cwd_identity_mae"] = cwd_identity_mae(

@@ -72,14 +72,19 @@ training:
   amp: true
   grad_clip_norm: 1.0
 
-  # Loss weights
+  # Loss weights (uniform — Huber loss handles outliers instead of weight hacks)
   loss_weights:
-    pet_initial: 1.0    # PET already performs well
-    pck_initial: 1.0    # PCK already performs well
-    aet_initial: 2.0    # Boost — underperforming in NE
-    cwd_initial: 2.0    # Boost — underperforming on NW coast
-    pet_decay: 0.99
+    pet_initial: 1.0
+    pck_initial: 1.0
+    aet_initial: 1.0
+    cwd_initial: 1.0
+    pet_decay: 1.0
     pet_floor: 0.5
+    huber_delta: 1.35   # MSE for errors < 1.35σ, MAE for errors > 1.35σ
+    extreme_threshold: 1.28  # z-score cutoff for extreme penalty (~P90)
+    extreme_weight: 2.0      # multiplier for extreme MSE penalty
+    extreme_vars: ["aet"]    # variables to apply extreme penalty to
+    extreme_asym: 1.5        # underprediction penalized 1.5x more
 
   # Teacher forcing curriculum
   teacher_forcing:

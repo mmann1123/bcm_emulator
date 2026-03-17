@@ -93,6 +93,11 @@ class BCMTrainer:
             pet_decay=lw.pet_decay,
             pet_floor=lw.pet_floor,
             total_epochs=self.epochs,
+            delta=getattr(lw, "huber_delta", 1.35),
+            extreme_threshold=getattr(lw, "extreme_threshold", 1.28),
+            extreme_weight=getattr(lw, "extreme_weight", 0.0),
+            extreme_vars=getattr(lw, "extreme_vars", []),
+            extreme_asym=getattr(lw, "extreme_asym", 1.5),
         )
 
         # AMP — disable on CPU
@@ -125,12 +130,18 @@ class BCMTrainer:
             lr = self.optimizer.param_groups[0]["lr"]
 
             # Logging
+            extreme_str = ""
+            for var in self.criterion.extreme_vars:
+                key = f"{var}_extreme"
+                if key in train_losses:
+                    extreme_str += f" {var.upper()}_ext={train_losses[key]:.4f}"
             logger.info(
                 f"Epoch {epoch+1}/{self.epochs} | "
                 f"TF={tf_ratio:.2f} | LR={lr:.6f} | "
                 f"Train: {train_losses['total']:.4f} "
                 f"(PET={train_losses['pet']:.4f} PCK={train_losses['pck']:.4f} "
-                f"AET={train_losses['aet']:.4f} CWD={train_losses['cwd']:.4f}) | "
+                f"AET={train_losses['aet']:.4f} CWD={train_losses['cwd']:.4f}"
+                f"{extreme_str}) | "
                 f"Val: {val_losses['total']:.4f} | "
                 f"Weights: PET={weights['pet']:.2f} PCK={weights['pck']:.2f}"
             )
@@ -152,6 +163,9 @@ class BCMTrainer:
         """Train for one epoch."""
         self.model.train()
         running = {"total": 0.0, "pet": 0.0, "pck": 0.0, "aet": 0.0, "cwd": 0.0}
+        # Add extreme loss keys dynamically
+        for var in self.criterion.extreme_vars:
+            running[f"{var}_extreme"] = 0.0
         n_batches = 0
 
         for batch in self.train_loader:
@@ -191,6 +205,8 @@ class BCMTrainer:
         """Validate for one epoch (always fully autoregressive)."""
         self.model.eval()
         running = {"total": 0.0, "pet": 0.0, "pck": 0.0, "aet": 0.0, "cwd": 0.0}
+        for var in self.criterion.extreme_vars:
+            running[f"{var}_extreme"] = 0.0
         n_batches = 0
 
         for batch in self.val_loader:
