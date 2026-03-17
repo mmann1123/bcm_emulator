@@ -99,6 +99,23 @@ All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/conf
 
 Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 9 static + 8 fveg embed = 27), `training` (epochs, LR, loss weights, teacher forcing).
 
+## Loss Function
+
+`BCMMultiLoss` (src/training/losses.py) computes a composite loss:
+
+```
+Total = Σ w_var * Huber(var) + extreme_weight * MSE_extreme(extreme_vars)
+```
+
+- **Huber loss** (delta=1.35): MSE for errors < 1.35σ, MAE beyond. Prevents outlier-driven instability but reduces gradients on extreme-value samples.
+- **Extreme-aware penalty** (v7+): Additive MSE term on samples where target z-score > `extreme_threshold` (1.28 ≈ P90). Asymmetric weighting penalizes underprediction 1.5x more than overprediction. Applied to AET only (CWD = PET - AET algebraically). Controlled by 4 config keys under `training.loss_weights`: `extreme_threshold`, `extreme_weight`, `extreme_vars`, `extreme_asym`. Set `extreme_weight: 0.0` to disable.
+
+**Motivation:** v6-huber systematically underpredicts AET extremes (P95 bias = -26.6mm, 72.7% of pixels underpredicting) because Huber's MAE tail removes the quadratic gradient exactly where it's needed most.
+
+## Current Status
+
+Best overall model: **v6-huber** (PET NSE 0.927, PCK NSE 0.950, CWD NSE 0.907). Known weakness: AET/CWD extreme underprediction. **v7-extreme-aware** (not yet trained) adds the extreme-aware MSE penalty to address this. See `docs/model_comparison.md` for full run-by-run analysis.
+
 ## Development Practices
 
 - All production data processing must be in project scripts (`src/data/`, `prepare_data.py`), not ad-hoc shell commands.
