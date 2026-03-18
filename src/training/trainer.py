@@ -195,7 +195,8 @@ class BCMTrainer:
             self.scaler.update()
 
             for k in running:
-                running[k] += losses[k].item()
+                if k in losses:
+                    running[k] += losses[k].item()
             n_batches += 1
 
         return {k: v / max(n_batches, 1) for k, v in running.items()}
@@ -228,7 +229,8 @@ class BCMTrainer:
                 losses = self.criterion(preds, targets, epoch)
 
             for k in running:
-                running[k] += losses[k].item()
+                if k in losses:
+                    running[k] += losses[k].item()
             n_batches += 1
 
         return {k: v / max(n_batches, 1) for k, v in running.items()}

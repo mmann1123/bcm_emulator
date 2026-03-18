@@ -14,7 +14,10 @@ paths:
   fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
   fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
   soil_dir: /home/mmann1123/extra_space/bcm_emulator/data/soil
-  awc_path: /home/mmann1123/extra_space/bcm_emulator/data/awc/awc_bcm.tif
+  soil_depth_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_thck4_v8.tif
+  aridity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_aridity_v8.tif
+  field_capacity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp0010_v8.tif
+  wilting_point_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp6000_v8.tif
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
   snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
@@ -46,7 +49,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 27  # 10 dynamic + 9 static + 8 fveg embedding
+    in_channels: 31  # 10 dynamic + 13 static + 8 fveg embedding
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
@@ -82,7 +85,7 @@ training:
     pet_floor: 0.5
     huber_delta: 1.35   # MSE for errors < 1.35σ, MAE for errors > 1.35σ
     extreme_threshold: 1.28  # z-score cutoff for extreme penalty (~P90)
-    extreme_weight: 2.0      # multiplier for extreme MSE penalty
+    extreme_weight: 0.0      # disabled for v8b (was 0.1 in v7b)
     extreme_vars: ["aet"]    # variables to apply extreme penalty to
     extreme_asym: 1.5        # underprediction penalized 1.5x more
 

@@ -126,7 +126,7 @@ def main():
 
     # Step 7: Download POLARIS soil properties (ksat, sand, clay)
     if run_all or "soil" in steps:
-        logger.info("=== Downloading POLARIS soil properties (ksat, sand, clay) ===")
+        logger.info("=== Downloading POLARIS soil properties (ksat, sand, clay, om) ===")
         from src.data.download_soil import download_soil_properties
 
         soil_results = download_soil_properties(
@@ -152,7 +152,10 @@ def main():
             elevation_path=cfg.paths.elevation_path,
             fveg_dir=cfg.paths.fveg_dir,
             soil_dir=cfg.paths.soil_dir,
-            awc_path=getattr(cfg.paths, "awc_path", ""),
+            soil_depth_path=getattr(cfg.paths, "soil_depth_path", ""),
+            aridity_path=getattr(cfg.paths, "aridity_path", ""),
+            field_capacity_path=getattr(cfg.paths, "field_capacity_path", ""),
+            wilting_point_path=getattr(cfg.paths, "wilting_point_path", ""),
             bcm_profile=bcm_profile,
             time_range=(cfg.temporal.train_start, cfg.temporal.test_end),
             snow_threshold=cfg.data.snow_threshold_celsius,

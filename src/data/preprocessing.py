@@ -92,7 +92,10 @@ def build_zarr_store(
     elevation_path: str,
     fveg_dir: str = "",
     soil_dir: str = "",
-    awc_path: str = "",
+    soil_depth_path: str = "",
+    aridity_path: str = "",
+    field_capacity_path: str = "",
+    wilting_point_path: str = "",
     bcm_profile: dict = None,
     time_range: Tuple[str, str] = ("1980-01", "2020-09"),
     snow_threshold: float = 0.0,
@@ -105,11 +108,11 @@ def build_zarr_store(
         - DAYMET: srad (reprojected to BCM grid)
         - PRISM daily-derived: wet_days, ppt_intensity (reprojected to BCM grid)
         - BCM outputs: aet, cwd, pck (targets, on BCM grid)
-        - Local: elevation, topo_solar, lat, lon, ksat, sand, clay, awc, windward_index (static)
+        - Local: elevation, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index (static)
 
     Zarr structure:
         /inputs/dynamic    (T, 10, H, W)  - dynamic input channels
-        /inputs/static     (10, H, W)     - static input channels
+        /inputs/static     (14, H, W)     - static input channels
         /targets/pet       (T, H, W)
         /targets/pck       (T, H, W)
         /targets/aet       (T, H, W)
@@ -141,8 +144,8 @@ def build_zarr_store(
         name="inputs/dynamic", shape=(T, 10, H, W), chunks=(12, 10, H, W), dtype="float32"
     )
 
-    # Static inputs: (10, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, awc, windward_index, fveg_class_id
-    static = store.zeros(name="inputs/static", shape=(10, H, W), dtype="float32")
+    # Static inputs: (14, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, fveg_class_id
+    static = store.zeros(name="inputs/static", shape=(14, H, W), dtype="float32")
 
     # Targets: (T, H, W)
     for var in ["pet", "pck", "aet", "cwd"]:
@@ -197,21 +200,58 @@ def build_zarr_store(
         else:
             logger.warning(f"{prop_name} not found; channel {ch_idx} will be zeros")
 
-    # AWC (available water capacity) -- channel 7
-    if awc_path and Path(awc_path).exists():
-        logger.info("Loading AWC raster...")
-        awc_data = _read_and_align(str(awc_path), bcm_profile)
-        awc_data[~valid_mask] = 0.0
-        static[7] = awc_data
+    # Soil depth — channel 7
+    if soil_depth_path and Path(soil_depth_path).exists():
+        logger.info("Loading soil depth raster...")
+        data = _read_and_align(str(soil_depth_path), bcm_profile)
+        data[~valid_mask] = 0.0
+        static[7] = data
     else:
-        logger.warning("AWC not found; channel 7 will be zeros")
+        logger.warning("Soil depth not found; channel 7 will be zeros")
 
-    # Windward/leeward index (derived from DEM) -- channel 8
+    # Aridity index — channel 8
+    if aridity_path and Path(aridity_path).exists():
+        logger.info("Loading aridity index raster...")
+        data = _read_and_align(str(aridity_path), bcm_profile)
+        data[~valid_mask] = 0.0
+        static[8] = data
+    else:
+        logger.warning("Aridity index not found; channel 8 will be zeros")
+
+    # Field capacity — channel 9
+    if field_capacity_path and Path(field_capacity_path).exists():
+        logger.info("Loading field capacity raster...")
+        data = _read_and_align(str(field_capacity_path), bcm_profile)
+        data[~valid_mask] = 0.0
+        static[9] = data
+    else:
+        logger.warning("Field capacity not found; channel 9 will be zeros")
+
+    # Wilting point — channel 10
+    if wilting_point_path and Path(wilting_point_path).exists():
+        logger.info("Loading wilting point raster...")
+        data = _read_and_align(str(wilting_point_path), bcm_profile)
+        data[~valid_mask] = 0.0
+        static[10] = data
+    else:
+        logger.warning("Wilting point not found; channel 10 will be zeros")
+
+    # SOM (organic matter from POLARIS) — channel 11
+    som_file = soil_path / "om_bcm.tif" if soil_path else None
+    if som_file and som_file.exists():
+        logger.info("Loading SOM (organic matter) raster...")
+        data = _read_and_align(str(som_file), bcm_profile)
+        data[~valid_mask] = 0.0
+        static[11] = data
+    else:
+        logger.warning("SOM (om_bcm.tif) not found; channel 11 will be zeros")
+
+    # Windward/leeward index (derived from DEM) -- channel 12
     logger.info("Computing windward index from DEM...")
     windward = compute_windward_index(elev, valid_mask)
-    static[8] = windward
+    static[12] = windward
 
-    # FVEG (CWHR vegetation class ID) -- channel 9
+    # FVEG (CWHR vegetation class ID) -- channel 13
     import json as _json
 
     fveg_dir_path = Path(fveg_dir) if fveg_dir else None
@@ -219,7 +259,7 @@ def build_zarr_store(
         logger.info("Loading FVEG partveg raster...")
         fveg_data = _read_bcm_grid_file(str(fveg_dir_path / "fveg_partveg.tif"))
         fveg_data[np.isnan(fveg_data)] = 0.0
-        static[9] = fveg_data
+        static[13] = fveg_data
 
         # Store FVEG metadata
         classmap_path = fveg_dir_path / "fveg_class_map.json"
@@ -231,7 +271,7 @@ def build_zarr_store(
             store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_info"])
             logger.info(f"FVEG: {num_fveg_classes} classes stored")
     else:
-        logger.warning("FVEG data not found; channel 9 will be zeros")
+        logger.warning("FVEG data not found; channel 13 will be zeros")
 
     # ---- Dynamic inputs and targets ----
     logger.info("Processing dynamic inputs and targets...")
@@ -430,19 +470,19 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     stds = np.sqrt(running_sq_sum / count - means**2)
     stds[stds < 1e-8] = 1.0
 
-    # Static channels: normalize channels 0-8 (continuous: elev, topo_solar, lat, lon, ksat, sand, clay, awc, windward_index)
-    # Channel 9 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
+    # Static channels: normalize channels 0-12 (continuous: elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index)
+    # Channel 13 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
     static = np.array(store["inputs/static"])
-    n_static = static.shape[0]  # 10
+    n_static = static.shape[0]  # 14
     static_means = np.zeros(n_static, dtype=np.float64)
     static_stds = np.ones(n_static, dtype=np.float64)
-    for ch in range(min(9, n_static)):  # normalize continuous channels 0-8
+    for ch in range(min(13, n_static)):  # normalize continuous channels 0-12
         vals = static[ch][valid_mask]
         static_means[ch] = vals.mean()
         static_stds[ch] = vals.std()
         if static_stds[ch] < 1e-8:
             static_stds[ch] = 1.0
-    # Channel 9 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
+    # Channel 13 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
 
     # Target stats
     target_names = ["pet", "pck", "aet", "cwd"]

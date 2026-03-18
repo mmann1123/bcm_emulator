@@ -1,0 +1,62 @@
+python prepare_data.py --steps zarr
+                                                                                                                                
+python validate_zarr.py
+
+python train.py --run-id v5-awc-windward --notes "AWC back, windward index, higher CWD/AET loss
+  weights"
+
+python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v6-huber
+
+python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v5-awc-windward','v6-huber', project_root='.')"
+
+
+
+python train.py --run-id v7b-extreme-low  --notes "Extreme-aware MSE penalty weight=0.1 (down from 2.0), z>1.28 on AET, asym 1.5x"   
+
+
+
+
+
+You have awc_path but BCMv8 keeps soil depth (ca_thk4_v8.asc, in meters) and volumetric water content (m water/m soil) as separate layers because they serve different roles. AWC as a single layer collapses them. Total plant-available storage = (FC − WP) × depth. If depth varies independently — and it does enormously across California, from centimeters on rocky ridges to 2+ meters in valley soils — a single AWC value loses that spatial signal. Add soil_depth_path as a separate static channel and keep AWC as the volumetric ratio. POLARIS provides soil depth, or it comes directly from the BCMv8 inputs.
+
+Soil depth and the separation from AWC remains important. CWD is an accumulated deficit — it measures how much more the atmosphere is demanding than the vegetation can supply. A shallow rocky soil on a south-facing slope exhausts its plant-available water weeks earlier than a deep loam, and that difference is the dominant spatial signal in fire risk CWD. Collapsing depth into AWC loses that.
+
+BCMv8 added a statewide aridity index map (ca_aridity_v8.asc) to drive continued drying below wilting point, which matters for recharge estimates in xeric regions and for correctly representing summer soil moisture in Mediterranean climates. Without it, the model may underestimate late-season drying. This is a precomputed static layer available directly from the BCMv8 statewide release — trivially easy to add as a static channel.
+
+The aridity index for below-wilting-point drying is arguably more important for your use case than for the general BCM, not less. In fire models, late-season CWD is what matters most — it drives fuel moisture and dead fuel curing. BCMv8's continued drying below wilting point is what makes the late-summer CWD estimates realistic in xeric California landscapes. Without it your model will hit an artificial floor at wilting point and underestimate the most dangerous fire conditions.
+
+Soil organic matter
+You have POLARIS for sand/clay/Ksat but SOM is not listed. In BCMv8, SOM modifies field capacity and wilting point through the Saxton-Rawls pedotransfer equations — soils with higher organic matter hold more water at any given texture. POLARIS provides SOM. Add som_path as a static channel, particularly valuable for grasslands and shrublands where organic matter drives meaningful variation in water-holding capacity.
+
+
+                                                                          
+python train.py --run-id v8b-no-extreme --notes "v8 soil physics channels (soil_depth, aridity, FC, WP, SOM) with extreme_weight=0.0"                         
+                                                                                                                            
+python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v8b-no-extreme                 
+                                                                                                                            
+python -c "from src.utils.snapshot import compare_snapshots;                                      
+  compare_snapshots('v5-awc-windward','v8b-no-extreme', project_root='.')"
+
+
+   # Phase 1: Download daily tmax (several hours, run first)
+ conda run -n deep_field python prepare_data.py --steps prism_daily_tmax
+
+ # Phase 2: Compute all candidate features
+ conda run -n deep_field python prepare_data.py --steps fire_features
+
+ # Phase 3: Feature selection — regress against CWD extreme bias
+ conda run -n deep_field python scripts/analyze_fire_features.py
+
+ # --- DECISION POINT: review regression results, pick winners ---
+
+ # Phase 4: Rebuild zarr with selected features (auto-backs up old zarr)
+ conda run -n deep_field python prepare_data.py --steps zarr
+
+ # Phase 5: Train v9
+ conda run -n deep_field python train.py --run-id v9-fire-features \
+     --notes "v8b + [selected features]; [N] dynamic channels"
+
+ # Phase 6: Evaluate + compare
+ conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v9-fire-features
+ conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots;
+ compare_snapshots('v8b-no-extreme','v9-fire-features', project_root='.')"

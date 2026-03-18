@@ -41,7 +41,7 @@ DEPTH_LAYERS = [
 # Total: 5 + 10 + 15 + 30 + 40 = 100 cm
 
 # Properties to download: name -> output filename
-SOIL_PROPERTIES = ["ksat", "sand", "clay"]
+SOIL_PROPERTIES = ["ksat", "sand", "clay", "om"]
 
 
 def download_soil_properties(

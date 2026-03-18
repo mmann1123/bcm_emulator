@@ -38,7 +38,7 @@ No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and
 prepare_data.py (downloads + zarr build)
     → data/bcm_dataset.zarr
         /inputs/dynamic   (T, 10, H, W)  - monthly climate
-        /inputs/static    (10, H, W)     - terrain + soil + vegetation
+        /inputs/static    (14, H, W)     - terrain + soil + vegetation
         /targets/{pet,pck,aet,cwd}  (T, H, W)
         /norm/*           - per-channel z-score stats
 
@@ -54,9 +54,9 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 19, T) → _prepend_fveg → (B, 27, T)
-  19 = 10 dynamic + 9 continuous static
-  27 = 19 + 8 FVEG embedding
+Input: (B, 23, T) → _prepend_fveg → (B, 31, T)
+  23 = 10 dynamic + 13 continuous static
+  31 = 23 + 8 FVEG embedding
 
 Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
           Receptive field: 125 months. Output: (B, 256, T)
@@ -75,9 +75,9 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 **Dynamic (10):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
 
-**Static (10):** elev, topo_solar, lat, lon, ksat, sand, clay, awc, windward_index, fveg_class_id
-- Channels 0-8 are continuous (z-score normalized)
-- Channel 9 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
+**Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
+- Channels 0-12 are continuous (z-score normalized)
+- Channel 13 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
 
 ### Dataset (src/data/dataset.py)
 
@@ -97,7 +97,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 9 static + 8 fveg embed = 27), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 13 static + 8 fveg embed = 31), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Loss Function
 
@@ -121,3 +121,27 @@ Best overall model: **v6-huber** (PET NSE 0.927, PCK NSE 0.950, CWD NSE 0.907). 
 - All production data processing must be in project scripts (`src/data/`, `prepare_data.py`), not ad-hoc shell commands.
 - Always tag training runs with `--run-id` and `--notes` for reproducibility.
 - When adding new input channels: update zarr shape in `preprocessing.py`, add normalization in `_compute_norm_stats`, verify `dataset.py` reads counts dynamically, update `config.yaml` `in_channels`.
+
+## Model Build/Run/Evaluate Workflow
+
+Every new model version MUST follow this exact sequence. Do not skip steps or reorder.
+
+```bash
+# 1. Download any new data (only needed if new data sources were added)
+conda run -n deep_field python prepare_data.py --steps soil
+
+# 2. Rebuild zarr store (ALWAYS required after changing static/dynamic channels)
+conda run -n deep_field python prepare_data.py --steps zarr
+
+# 3. Train with a descriptive run-id and notes explaining what changed
+conda run -n deep_field python train.py --run-id v8-soil-physics \
+    --notes "v5 base + soil_depth, aridity_index, FC, WP, SOM; AWC removed; 14 static channels"
+
+# 4. Evaluate the trained model
+conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v8-soil-physics
+
+# 5. Compare against the previous best run(s)
+conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v5-awc-windward','v8-soil-physics', project_root='.')"
+```
+
+This is the canonical workflow. All five steps must be run in order for every new model version.
