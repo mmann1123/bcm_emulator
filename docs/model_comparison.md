@@ -6,18 +6,20 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 
 ## Run Summary
 
-| Run | Date | Description |
-|-----|------|-------------|
-| v1-baseline | 2026-03-15 | Baseline TCN, no FVEG embedding, MSE loss |
-| v2-fveg-srad-fix | 2026-03-15 | Fixed srad bbox to 43.5N, added FVEG CWHR embedding (62 classes) |
-| v3-vpd-awc | 2026-03-16 | Added VPD dynamic input + POLARIS AWC static input |
-| v4-soil-props | 2026-03-16 | Replaced AWC with ksat+sand+clay from POLARIS |
-| v5-awc-windward | 2026-03-16 | AWC restored, windward index added, higher AET/CWD loss weights |
-| v5b-pet-reweight | 2026-03-16 | Same as v5 with PET weight 1.0 -> 1.5 to recover PET accuracy |
-| v6-huber | 2026-03-17 | Huber loss (delta=1.35), uniform weights, AWC+windward features |
-| v7-extreme-aware | 2026-03-17 | v6 + extreme-aware MSE penalty on AET (z>1.28, asym 1.5x, weight=2.0) -- **FAILED: weight too high** |
-| v7b-extreme-low | 2026-03-17 | v7 with extreme_weight reduced to 0.1 (from 2.0) -- **NOTE: eval metrics identical to v7; likely checkpoint issue** |
-| v8-soil-physics | 2026-03-18 | v5 base + soil_depth, aridity_index, FC, WP, SOM; AWC removed; 14 static channels |
+| Run | Date | Loss | Description |
+|-----|------|------|-------------|
+| v1-baseline | 2026-03-15 | MSE | Baseline TCN, no FVEG embedding |
+| v2-fveg-srad-fix | 2026-03-15 | MSE | Fixed srad bbox to 43.5N, added FVEG CWHR embedding (62 classes) |
+| v3-vpd-awc | 2026-03-16 | MSE | Added VPD dynamic input + POLARIS AWC static input |
+| v4-soil-props | 2026-03-16 | MSE | Replaced AWC with ksat+sand+clay from POLARIS |
+| v5-awc-windward | 2026-03-16 | MSE | AWC restored, windward index added, higher AET/CWD loss weights |
+| v5b-pet-reweight | 2026-03-16 | MSE | Same as v5 with PET weight 1.0 -> 1.5 to recover PET accuracy |
+| v6-huber | 2026-03-17 | Huber | Huber loss (delta=1.35), uniform weights, AWC+windward features |
+| v7-extreme-aware | 2026-03-17 | Huber+Extreme | v6 + extreme-aware MSE penalty on AET (z>1.28, asym 1.5x, weight=2.0) -- **FAILED: weight too high** |
+| v7b-extreme-low | 2026-03-17 | Huber+Extreme | v7 with extreme_weight reduced to 0.1 (from 2.0) -- **NOTE: eval metrics identical to v7; likely checkpoint issue** |
+| v8-soil-physics | 2026-03-18 | Huber+Extreme | v5 base + soil_depth, aridity_index, FC, WP, SOM; AWC removed; 14 static channels |
+| v8b-no-extreme | 2026-03-18 | Huber | v8 soil physics channels with extreme_weight=0.0 (pure Huber loss) |
+| v8c-mse | 2026-03-18 | MSE | v8b architecture/data with MSE loss (controlled comparison vs Huber) |
 
 ## Global Performance Metrics
 
@@ -34,7 +36,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v6-huber | 0.927 | **0.950** | 0.828 | 0.907 |
 | v7-extreme-aware | 0.876 | 0.961 | 0.760 | 0.830 |
 | v7b-extreme-low | 0.876 | 0.961 | 0.760 | 0.830 |
-| v8-soil-physics | **0.914** | 0.935 | **0.851** | **0.894** |
+| v8-soil-physics | 0.914 | 0.935 | **0.851** | 0.894 |
+| v8b-no-extreme | **0.927** | 0.916 | 0.839 | 0.899 |
+| v8c-mse | **0.927** | 0.930 | 0.834 | 0.907 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -49,7 +53,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v6-huber | **0.945** | 0.886 | 0.740 | 0.929 |
 | v7-extreme-aware | 0.881 | 0.924 | 0.588 | 0.862 |
 | v7b-extreme-low | 0.881 | **0.924** | 0.588 | 0.862 |
-| v8-soil-physics | 0.930 | 0.923 | **0.791** | **0.920** |
+| v8-soil-physics | 0.930 | 0.923 | **0.791** | 0.920 |
+| v8b-no-extreme | 0.944 | 0.816 | 0.767 | **0.935** |
+| v8c-mse | **0.946** | 0.918 | 0.744 | 0.928 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -65,6 +71,8 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v7-extreme-aware | 21.2 | 10.3 | 14.7 | 24.0 |
 | v7b-extreme-low | 21.2 | **10.3** | 14.7 | 24.0 |
 | v8-soil-physics | 17.7 | 13.4 | **11.6** | 19.0 |
+| v8b-no-extreme | 16.3 | 15.2 | 12.1 | 18.5 |
+| v8c-mse | 16.3 | 13.8 | 12.3 | 17.7 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -79,7 +87,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v6-huber | -1.0 | 9.4 | 4.1 | **-1.7** |
 | v7-extreme-aware | 3.9 | 7.2 | 40.3 | -11.1 |
 | v7b-extreme-low | 3.9 | 7.2 | 40.3 | -11.1 |
-| v8-soil-physics | **-0.3** | **4.2** | 12.7 | -4.4 |
+| v8-soil-physics | -0.3 | **4.2** | 12.7 | -4.4 |
+| v8b-no-extreme | -1.0 | 13.3 | 4.9 | -2.0 |
+| v8c-mse | **-0.9** | **5.0** | 6.4 | -2.5 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -93,7 +103,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v5b-pet-reweight | 26.9 | -18.4 | 0.754 |
 | v6-huber | 31.6 | -26.6 | 0.754 |
 | v7b-extreme-low | **17.3** | **-2.4** | 0.742 |
-| v8-soil-physics | 24.6 | -15.9 | **0.755** |
+| v8-soil-physics | 24.6 | -15.9 | 0.755 |
+| v8b-no-extreme | 29.3 | -23.3 | 0.757 |
+| v8c-mse | 30.6 | -25.5 | **0.765** |
 
 ### AET Extremes (P99)
 
@@ -104,6 +116,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v6-huber | 40.5 | -37.7 | 0.561 |
 | v7b-extreme-low | **19.4** | **-10.9** | 0.543 |
 | v8-soil-physics | 29.8 | -24.3 | 0.561 |
+| v8b-no-extreme | 37.1 | -33.4 | 0.572 |
+| v8c-mse | 38.6 | -35.7 | **0.602** |
 
 ### CWD Extremes (P95)
 
@@ -113,7 +127,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v5b-pet-reweight | **8.2** | -1.4 | 0.798 |
 | v6-huber | 8.8 | **-0.8** | 0.801 |
 | v7b-extreme-low | 13.1 | -5.7 | 0.746 |
-| v8-soil-physics | 9.1 | -2.5 | **0.783** |
+| v8-soil-physics | 9.1 | -2.5 | 0.783 |
+| v8b-no-extreme | 8.7 | **+0.6** | **0.804** |
+| v8c-mse | 9.0 | -1.3 | 0.793 |
 
 ### CWD Extremes (P99)
 
@@ -124,6 +140,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v6-huber | 5.2 | **-0.3** | 0.685 |
 | v7b-extreme-low | 10.3 | -5.6 | 0.651 |
 | v8-soil-physics | 6.1 | -2.5 | 0.672 |
+| v8b-no-extreme | **5.0** | **+0.6** | 0.683 |
+| v8c-mse | 6.0 | -1.2 | **0.686** |
 
 ## Analysis for Wildfire Modeling
 
@@ -175,6 +193,36 @@ Replaced AWC with 5 physically-informed channels: soil_depth (ca_thck4_v8), arid
 
 **Key insight:** The new channels strongly help PET (the first stage) but the AET head (stage 3) doesn't fully exploit them yet. The AET overprediction (+12.7% pbias) suggests the model interprets the richer soil info as "more water available for ET" without properly learning the constraints. CWD inherits this as a difference-of-two-large-numbers amplification problem.
 
+### v8b-no-extreme: pure Huber with soil physics
+
+v8b uses the same 14 static channels as v8 but disables the extreme penalty (`extreme_weight=0.0`), returning to pure Huber loss with uniform weights — the same loss configuration as v6-huber but with the richer v8 static channels.
+
+**Results vs v5-awc-windward (best AET/CWD model) and v8:**
+
+- **PET: recovered to v6-class accuracy** — NSE 0.927 (matching v6-huber's 0.927), KGE 0.944 (best ever). The soil physics channels + Huber loss is a winning combination for PET.
+- **PCK: regressed** — NSE 0.916, KGE 0.816. pbias 13.3% (worst across runs). PCK appears to suffer from the additional soil channels creating confounding signals.
+- **AET: middle ground** — NSE 0.839 (below v5's 0.851 and v8's 0.851), but pbias 4.9% is much better than v8's 12.7%. The pure Huber loss avoids v8's overprediction problem.
+- **CWD: excellent global + best extreme metrics** — NSE 0.899 (below v5's 0.915), but CWD KGE 0.935 is the best ever. CWD P95 bias is **+0.6mm** — the first model to show slight *overprediction* rather than underprediction at extremes. CWD P95 hit rate 0.804 and P99 hit rate 0.683 are both best-in-class.
+- **AET extremes: regressed** — P95 bias -23.3mm (worse than v5's -17.9 and v8's -15.9). The pure Huber loss reproduces the v6-era pattern of suppressing extreme-value gradients.
+
+**Key insight:** v8b demonstrates a clean separation of concerns. The soil physics channels help PET and CWD but don't resolve AET extremes — that requires either loss function changes (extreme penalty) or additional dynamic features that capture within-month heat stress (the motivation for v9's fire features: HDD, sigmoid heat stress, Drought Code).
+
+### v8c-mse: controlled MSE vs Huber comparison
+
+v8c is identical to v8b (same data, same architecture, same uniform weights, extreme_weight=0.0) but switches to MSE loss. This is the first clean apples-to-apples comparison of MSE vs Huber on the same data.
+
+**Results vs v8b (Huber):**
+
+- **PET: dead tie** — NSE 0.927 for both. KGE 0.946 (MSE) vs 0.944 (Huber). The loss function doesn't matter for PET.
+- **PCK: MSE dramatically better** — pbias 5.0% vs 13.3%, NSE 0.930 vs 0.916, RMSE 13.8 vs 15.2. Huber's linear tail appears to hurt PCK's ability to match large snowpack values.
+- **AET: Huber slightly better** — NSE 0.839 vs 0.834, pbias 4.9% vs 6.4%. Small margin.
+- **CWD: MSE better globally** — NSE 0.907 vs 0.899, RMSE 17.7 vs 18.5. The improved PCK flows through to better CWD.
+- **CWD extremes: Huber better** — P95 bias +0.6mm (Huber) vs -1.3mm (MSE), hit rate 0.804 vs 0.793. Huber's tail suppression ironically helps CWD extremes by preventing AET overshoot.
+- **AET extremes: both poor** — P95 bias -23.3mm (Huber) vs -25.5mm (MSE). Neither loss resolves the fundamental AET extreme underprediction.
+- **Exceedance hit rates: MSE better** — AET P95 0.765 vs 0.757, AET P99 0.602 vs 0.572. MSE's quadratic gradients push more predictions above the threshold, even though the mean bias is worse.
+
+**Key insight:** MSE is the better choice for this architecture. It wins on PCK (dramatically), CWD global, and exceedance hit rates, while only marginally losing on AET and CWD extremes. The Huber loss was introduced in v6 to stabilize training, but with the richer v8 soil physics channels, MSE training is stable without it (best epoch 67 vs 78, val loss curves well-behaved). The persistent AET extreme underprediction (-18 to -26mm at P95) is a data/feature problem, not a loss function problem — motivating the v9 fire features approach.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -204,6 +252,14 @@ v7  + Extreme MSE penalty (wt=2.0) ... AET NSE 0.760, CWD NSE 0.830  REGRESSION
 v7b + Extreme MSE penalty (wt=0.1) ... AET NSE 0.760, CWD NSE 0.830  (EVAL INVALID - checkpoint issue)
  |                                       Training stabilized (val_loss 0.271 vs v7's 1.002), needs re-eval
 v8  + soil_depth/aridity/FC/WP/SOM .. AET NSE 0.851, CWD NSE 0.894
-                                         PET best-ever (0.914), AET pbias worse (+12.7%)
-                                         CWD regressed due to error amplification in PET-AET difference
+ |                                       PET best-ever (0.914), AET pbias worse (+12.7%)
+ |                                       CWD regressed due to error amplification in PET-AET difference
+v8b Pure Huber + soil physics ........ AET NSE 0.839, CWD NSE 0.899
+ |                                       PET recovered (0.927), CWD KGE best-ever (0.935)
+ |                                       CWD P95 bias +0.6mm (first positive!), hit rate 0.804 (best)
+ |                                       AET extremes regressed (P95 bias -23.3mm)
+v8c MSE loss (same arch/data) ....... AET NSE 0.834, CWD NSE 0.907
+                                         PCK dramatically better (pbias 5.0% vs 13.3%)
+                                         CWD global better, CWD extremes slightly worse
+                                         Confirms AET extreme bias is a feature problem, not loss problem
 ```

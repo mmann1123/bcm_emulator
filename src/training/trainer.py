@@ -93,6 +93,7 @@ class BCMTrainer:
             pet_decay=lw.pet_decay,
             pet_floor=lw.pet_floor,
             total_epochs=self.epochs,
+            loss_type=getattr(tcfg, "loss_type", "huber"),
             delta=getattr(lw, "huber_delta", 1.35),
             extreme_threshold=getattr(lw, "extreme_threshold", 1.28),
             extreme_weight=getattr(lw, "extreme_weight", 0.0),

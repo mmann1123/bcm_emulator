@@ -49,7 +49,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 31  # 10 dynamic + 13 static + 8 fveg embedding
+    in_channels: 32  # 11 dynamic + 13 static + 8 fveg embedding
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
@@ -74,6 +74,8 @@ training:
   warmup_epochs: 5
   amp: true
   grad_clip_norm: 1.0
+
+  loss_type: mse  # "mse" (v1-v5b) or "huber" (v6+)
 
   # Loss weights (uniform — Huber loss handles outliers instead of weight hacks)
   loss_weights:

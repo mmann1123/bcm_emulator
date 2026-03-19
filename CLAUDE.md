@@ -14,7 +14,7 @@ conda run -n deep_field python <script.py>
 
 ```bash
 # Data pipeline (individual steps or "all")
-conda run -n deep_field python prepare_data.py --steps sciencebase pck_gap prism_daily srad topo_solar fveg soil zarr
+conda run -n deep_field python prepare_data.py --steps sciencebase pck_gap prism_daily prism_daily_tmax srad topo_solar fveg soil fire_features zarr
 
 # Training (always tag with --run-id and --notes)
 conda run -n deep_field python train.py --run-id v3-vpd-awc --notes "Added VPD dynamic input + POLARIS AWC static input"
@@ -37,7 +37,7 @@ No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and
 ```
 prepare_data.py (downloads + zarr build)
     → data/bcm_dataset.zarr
-        /inputs/dynamic   (T, 10, H, W)  - monthly climate
+        /inputs/dynamic   (T, 11, H, W)  - monthly climate
         /inputs/static    (14, H, W)     - terrain + soil + vegetation
         /targets/{pet,pck,aet,cwd}  (T, H, W)
         /norm/*           - per-channel z-score stats
@@ -54,9 +54,9 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 23, T) → _prepend_fveg → (B, 31, T)
-  23 = 10 dynamic + 13 continuous static
-  31 = 23 + 8 FVEG embedding
+Input: (B, 24, T) → _prepend_fveg → (B, 32, T)
+  24 = 11 dynamic + 13 continuous static
+  32 = 24 + 8 FVEG embedding
 
 Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
           Receptive field: 125 months. Output: (B, 256, T)
@@ -73,7 +73,7 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 ### Input channels
 
-**Dynamic (10):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
+**Dynamic (11):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, drought_code
 
 **Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
 - Channels 0-12 are continuous (z-score normalized)
@@ -97,7 +97,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 13 static + 8 fveg embed = 31), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 11 dyn + 13 static + 8 fveg embed = 32), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Loss Function
 
@@ -145,3 +145,12 @@ conda run -n deep_field python -c "from src.utils.snapshot import compare_snapsh
 ```
 
 This is the canonical workflow. All five steps must be run in order for every new model version.
+
+## Zarr Reproducibility
+
+- **Auto-backup:** When `prepare_data.py --steps zarr` runs and an existing zarr store is found, it is automatically renamed to `bcm_dataset_{fingerprint}.zarr` (where fingerprint is derived from the zarr's normalization stats) before the new zarr is built. This preserves the exact data used by previous model versions.
+- **Recreation:** Any previous zarr can be recreated from its snapshot config:
+  ```bash
+  conda run -n deep_field python prepare_data.py --config snapshots/{run_id}/config.yaml --steps zarr
+  ```
+- Source rasters are stable on disk; zarr is deterministically derived from config + rasters.

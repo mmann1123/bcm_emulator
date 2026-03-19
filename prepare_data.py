@@ -28,7 +28,7 @@ def main():
         "--steps",
         nargs="+",
         default=["all"],
-        choices=["all", "sciencebase", "pck_gap", "prism_daily", "srad", "daymet", "topo_solar", "fveg", "soil", "zarr"],
+        choices=["all", "sciencebase", "pck_gap", "prism_daily", "prism_daily_tmax", "srad", "daymet", "topo_solar", "fveg", "soil", "fire_features", "zarr"],
         help="Which steps to run",
     )
     args = parser.parse_args()
@@ -86,6 +86,17 @@ def main():
             bcm_profile=bcm_profile,
         )
 
+    # Step 3b: Download PRISM daily tmax (for fire features)
+    if run_all or "prism_daily_tmax" in steps:
+        logger.info("=== Downloading PRISM daily tmax ===")
+        from src.data.download_prism import download_prism_daily_tmax
+
+        download_prism_daily_tmax(
+            year_start=int(cfg.temporal.train_start[:4]),
+            year_end=int(cfg.temporal.test_end[:4]),
+            out_dir=cfg.paths.prism_daily_dir,
+        )
+
     # Step 4: Download srad (TerraClimate replaces DAYMET)
     if run_all or "srad" in steps or "daymet" in steps:
         logger.info("=== Downloading TerraClimate srad ===")
@@ -137,8 +148,33 @@ def main():
         for prop, path in soil_results.items():
             logger.info(f"  {prop}: {path}")
 
+    # Step 7b: Compute fire-relevant features from daily PRISM tmax + ppt
+    if run_all or "fire_features" in steps:
+        logger.info("=== Computing fire-relevant features ===")
+        from src.data.compute_fire_features import compute_all_fire_features
+
+        compute_all_fire_features(
+            daily_tmax_dir=str(cfg.paths.prism_daily_dir) + "/tmax_daily",
+            daily_ppt_dir=str(cfg.paths.prism_daily_dir) + "/ppt_daily",
+            out_dir=cfg.paths.prism_monthly_dir,
+            bcm_profile=bcm_profile,
+        )
+
     # Step 8: Build zarr store
     if run_all or "zarr" in steps:
+        zarr_path = cfg.paths.zarr_store
+        # Auto-backup existing zarr before rebuild
+        if Path(zarr_path).exists():
+            from src.utils.snapshot import _zarr_fingerprint
+
+            existing_fp = _zarr_fingerprint(zarr_path)[:16]
+            backup_path = str(zarr_path).replace(".zarr", f"_{existing_fp}.zarr")
+            if not Path(backup_path).exists():
+                logger.info(f"Backing up existing zarr to {backup_path}")
+                Path(zarr_path).rename(backup_path)
+            else:
+                logger.info(f"Backup already exists at {backup_path}, overwriting current zarr")
+
         logger.info("=== Building zarr store ===")
         from src.data.preprocessing import build_zarr_store
 

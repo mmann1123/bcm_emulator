@@ -22,6 +22,7 @@ class BCMMultiLoss(nn.Module):
         pet_decay: float = 1.0,
         pet_floor: float = 0.5,
         total_epochs: int = 100,
+        loss_type: str = "huber",
         delta: float = 1.35,
         extreme_threshold: float = 1.28,
         extreme_weight: float = 0.0,
@@ -30,7 +31,11 @@ class BCMMultiLoss(nn.Module):
         **kwargs,
     ):
         super().__init__()
-        self.huber = nn.HuberLoss(delta=delta)
+        self.loss_type = loss_type
+        if loss_type == "mse":
+            self.base_loss = nn.MSELoss()
+        else:
+            self.base_loss = nn.HuberLoss(delta=delta)
         self.pet_initial = pet_initial
         self.pck_initial = pck_initial
         self.aet_initial = aet_initial
@@ -80,7 +85,7 @@ class BCMMultiLoss(nn.Module):
         total = torch.tensor(0.0, device=next(iter(predictions.values())).device)
 
         for var in ["pet", "pck", "aet", "cwd"]:
-            loss = self.huber(predictions[var], targets[var])
+            loss = self.base_loss(predictions[var], targets[var])
             losses[var] = loss
             total = total + weights[var] * loss
 

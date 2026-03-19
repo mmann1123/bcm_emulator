@@ -182,6 +182,68 @@ def download_prism_daily_ppt(
     return downloaded
 
 
+def download_prism_daily_tmax(
+    year_start: int,
+    year_end: int,
+    out_dir: str,
+) -> List[str]:
+    """Download daily PRISM tmax at 4km for fire feature derivation.
+
+    Downloads are stored as monthly subdirectories under tmax_daily/.
+    """
+    import calendar
+
+    out_base = Path(out_dir) / "tmax_daily"
+    out_base.mkdir(parents=True, exist_ok=True)
+    downloaded = []
+
+    # PRISM daily data only available from 1981 onward
+    if year_start < 1981:
+        logger.warning(
+            f"PRISM daily data starts in 1981; adjusting year_start from {year_start} to 1981"
+        )
+        year_start = 1981
+
+    for year in range(year_start, year_end + 1):
+        for month in range(1, 13):
+            if year == year_end and month > 4:
+                break
+
+            month_dir = out_base / f"{year}{month:02d}"
+            month_dir.mkdir(exist_ok=True)
+
+            # Check if already processed
+            existing = list(month_dir.glob("*.tif"))
+            days_in_month = calendar.monthrange(year, month)[1]
+            if len(existing) >= days_in_month:
+                logger.debug(f"Already have daily tmax {year}-{month:02d}")
+                continue
+
+            for day in range(1, days_in_month + 1):
+                tif_pattern = f"*{year}{month:02d}{day:02d}*.tif"
+                if list(month_dir.glob(tif_pattern)):
+                    continue
+
+                url = PRISM_DAILY_URL.format(
+                    variable="tmax", year=year, month=month, day=day
+                )
+                zip_dest = str(month_dir / f"tmax_{year}{month:02d}{day:02d}.zip")
+
+                if download_file(url, zip_dest):
+                    try:
+                        tif = extract_tif_from_zip(zip_dest, str(month_dir))
+                        downloaded.append(tif)
+                    except Exception as e:
+                        logger.error(f"Failed to extract {zip_dest}: {e}")
+
+                time.sleep(REQUEST_DELAY_SEC)
+
+            logger.info(f"Downloaded daily tmax for {year}-{month:02d}")
+
+    logger.info(f"Downloaded {len(downloaded)} daily tmax files total")
+    return downloaded
+
+
 def compute_wet_days_and_intensity(
     daily_ppt_dir: str,
     out_dir: str,

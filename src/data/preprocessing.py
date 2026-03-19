@@ -138,10 +138,10 @@ def build_zarr_store(
     # Create zarr store
     store = zarr.open(zarr_path, mode="w")
 
-    # Dynamic inputs: (T, 10, H, W)
-    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
+    # Dynamic inputs: (T, 11, H, W)
+    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, drought_code
     dynamic = store.zeros(
-        name="inputs/dynamic", shape=(T, 10, H, W), chunks=(12, 10, H, W), dtype="float32"
+        name="inputs/dynamic", shape=(T, 11, H, W), chunks=(12, 11, H, W), dtype="float32"
     )
 
     # Static inputs: (14, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, fveg_class_id
@@ -282,7 +282,8 @@ def build_zarr_store(
 
     # Track missing data for summary
     missing_counts = {"ppt": 0, "tmin": 0, "tmax": 0, "wet_days": 0,
-                      "ppt_intensity": 0, "srad": 0, "aet": 0, "cwd": 0, "pck": 0}
+                      "ppt_intensity": 0, "srad": 0, "drought_code": 0,
+                      "aet": 0, "cwd": 0, "pck": 0}
 
     for t_idx, ym in enumerate(time_index):
         if t_idx % 60 == 0:
@@ -336,6 +337,13 @@ def build_zarr_store(
         vpd = compute_vpd(tmin_data, tmax_data)
         vpd[~valid_mask] = 0.0
         dynamic[t_idx, 9] = vpd
+
+        # --- Drought Code (from PRISM daily-derived) ---
+        dc_path = _find_file(prism_processed / "drought_code", f"*{ym_compact}*.tif")
+        if dc_path:
+            dynamic[t_idx, 10] = _read_and_align(str(dc_path), bcm_profile)
+        else:
+            missing_counts["drought_code"] += 1
 
         # --- Targets: aet, cwd from BCM local outputs ---
         aet_data = None
@@ -444,10 +452,10 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     dynamic = store["inputs/dynamic"]
     T = dynamic.shape[0]
 
-    n_channels = 10
+    n_channels = 11
     channel_names = [
         "ppt", "tmin", "tmax", "wet_days", "ppt_intensity",
-        "srad", "snow_frac", "pck_prev", "aet_prev", "vpd",
+        "srad", "snow_frac", "pck_prev", "aet_prev", "vpd", "drought_code",
     ]
 
     n_valid = valid_mask.sum()
