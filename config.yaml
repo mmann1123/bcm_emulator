@@ -65,7 +65,9 @@ model:
       in_channels: 256
       activation: softplus  # guarantees >= 0
     aet_stress:
-      in_channels: 260  # 256 backbone + PET + PCK + KBDI + Kv
+      bb_channels: 256
+      hidden_dim: 32  # stress_net and correction_net hidden size
+      dropout: 0.1
 
 # Training
 training:

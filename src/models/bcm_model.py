@@ -60,8 +60,8 @@ class BCMEmulator(nn.Module):
         self.pet_head = PointwiseHead(bb_out, activation="softplus")
         self.pck_head = PointwiseHead(bb_out, activation="softplus")
 
-        # Stage 3 head: takes backbone + PET + PCK + KBDI + Kv
-        self.aet_head = AETHead(bb_out + 4)
+        # Stage 3 head: stress-fraction architecture (stress × Kv × PET + correction)
+        self.aet_head = AETHead(bb_out)
 
     def _prepend_fveg(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor]) -> torch.Tensor:
         """Concatenate FVEG embedding to input tensor if fveg is configured."""
@@ -125,14 +125,10 @@ class BCMEmulator(nn.Module):
         pet = self.pet_head(features)
         pck = self.pck_head(features)
 
-        # AET head gets backbone features + PET + PCK + KBDI + Kv
-        aet_parts = [features, pet, pck]
-        if kbdi is not None:
-            aet_parts.append(kbdi)
-        if kv is not None:
-            aet_parts.append(kv)
-        aet_input = torch.cat(aet_parts, dim=1)
-        aet = self.aet_head(aet_input, pet)
+        # AET stress-fraction head
+        _kbdi = kbdi if kbdi is not None else torch.zeros_like(pet)
+        _kv = kv if kv is not None else torch.zeros_like(pet)
+        aet = self.aet_head(features, pet, pck, _kbdi, _kv)
 
         cwd = pet - aet
 
@@ -186,14 +182,10 @@ class BCMEmulator(nn.Module):
             pet_t = self.pet_head(feat_t)
             pck_t = self.pck_head(feat_t)
 
-            # AET head gets backbone features + PET + PCK + KBDI + Kv
-            aet_parts = [feat_t, pet_t, pck_t]
-            if kbdi is not None:
-                aet_parts.append(kbdi[:, :, t:t + 1])
-            if kv is not None:
-                aet_parts.append(kv[:, :, t:t + 1])
-            aet_input_t = torch.cat(aet_parts, dim=1)
-            aet_t = self.aet_head(aet_input_t, pet_t)
+            # AET stress-fraction head
+            kbdi_t = kbdi[:, :, t:t + 1] if kbdi is not None else torch.zeros_like(pet_t)
+            kv_t = kv[:, :, t:t + 1] if kv is not None else torch.zeros_like(pet_t)
+            aet_t = self.aet_head(feat_t, pet_t, pck_t, kbdi_t, kv_t)
 
             pet_out[:, :, t] = pet_t[:, :, 0]
             pck_out[:, :, t] = pck_t[:, :, 0]

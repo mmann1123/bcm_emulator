@@ -23,6 +23,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-drought-code | 2026-03-19 | MSE | v8c + drought_code dynamic channel; 12 dynamic inputs, MSE loss |
 | v9-kbdi | 2026-03-19 | MSE | v8c base + KBDI dynamic channel (replaces drought_code); 11 dynamic inputs, MSE loss |
 | v10-kbdi-aet-only | 2026-03-20 | MSE | KBDI routed only to AET head (bypasses backbone); 10 dyn through backbone, KBDI injected at AET stage |
+| v11-kv-aet | 2026-03-20 | MSE | v10 + BCM Table 6 Kv crop coefficient as time-varying channel at AET head (MLP head, 260→64→1) |
 
 ## Global Performance Metrics
 
@@ -45,6 +46,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-drought-code | 0.927 | 0.932 | 0.810 | 0.888 |
 | v9-kbdi | 0.925 | 0.929 | 0.824 | 0.896 |
 | v10-kbdi-aet-only | 0.927 | 0.929 | 0.840 | 0.897 |
+| v11-kv-aet | 0.928 | 0.930 | 0.835 | 0.900 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -65,6 +67,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-drought-code | **0.953** | 0.887 | 0.738 | 0.902 |
 | v9-kbdi | 0.952 | 0.855 | 0.743 | 0.907 |
 | v10-kbdi-aet-only | 0.942 | 0.826 | 0.769 | 0.925 |
+| v11-kv-aet | 0.942 | 0.871 | 0.745 | 0.915 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -85,6 +88,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-drought-code | 16.3 | 13.7 | 13.1 | 19.5 |
 | v9-kbdi | 16.5 | 14.0 | 12.7 | 18.8 |
 | v10-kbdi-aet-only | 16.3 | 14.0 | 12.1 | 18.7 |
+| v11-kv-aet | 16.1 | 13.8 | 12.3 | 18.4 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -105,6 +109,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-drought-code | -1.1 | 8.2 | 10.3 | -4.4 |
 | v9-kbdi | -1.8 | 12.4 | 6.6 | -3.8 |
 | v10-kbdi-aet-only | -1.0 | 13.5 | 6.3 | -2.6 |
+| v11-kv-aet | -0.9 | 8.7 | 10.0 | -4.1 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -124,6 +129,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-drought-code | 31.3 | -26.3 | 0.727 |
 | v9-kbdi | 31.9 | -26.4 | 0.740 |
 | v10-kbdi-aet-only | 29.6 | -23.3 | 0.758 |
+| v11-kv-aet | 29.0 | -23.4 | 0.764 |
 
 ### AET Extremes (P99)
 
@@ -139,6 +145,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-drought-code | 40.0 | -37.3 | 0.573 |
 | v9-kbdi | 41.3 | -38.4 | 0.523 |
 | v10-kbdi-aet-only | 37.5 | -33.6 | 0.587 |
+| v11-kv-aet | 36.4 | -33.3 | 0.592 |
 
 ### CWD Extremes (P95)
 
@@ -154,6 +161,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-drought-code | 13.7 | -4.1 | 0.758 |
 | v9-kbdi | 10.5 | -4.6 | 0.798 |
 | v10-kbdi-aet-only | 9.6 | **-0.6** | 0.797 |
+| v11-kv-aet | 9.7 | -2.6 | 0.802 |
 
 ### CWD Extremes (P99)
 
@@ -169,6 +177,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-drought-code | 9.5 | -2.3 | 0.666 |
 | v9-kbdi | 8.2 | -4.2 | 0.670 |
 | v10-kbdi-aet-only | 5.7 | -0.6 | 0.684 |
+| v11-kv-aet | 6.4 | -2.0 | **0.713** |
 
 ## Analysis for Wildfire Modeling
 
@@ -299,6 +308,21 @@ v10 implements the architectural insight from v9: drought features help PET but 
 
 **Key insight:** The architectural routing hypothesis is validated. KBDI through the backbone hurts AET (v9-kbdi NSE 0.824 < v8c baseline 0.834); KBDI routed only to the AET head helps AET (v10 NSE 0.840 > v8c baseline 0.834). This is the first model to demonstrate that a drought feature can improve water balance prediction when properly connected. The remaining AET extreme bias (~-23mm at P95) likely requires either (a) an explicit inhibitory mechanism in the AET head, (b) sub-monthly temporal resolution, or (c) additional drought-response features (e.g., NDVI anomaly, soil moisture).
 
+### v11-kv-aet: BCM Table 6 Kv crop coefficient (MLP head)
+
+v11-kv-aet adds the BCM Table 6 Kv crop coefficient as a time-varying channel injected directly into the AET head alongside KBDI, PET, and PCK. Kv encodes the vegetation-specific seasonal transpiration potential (0.0 for bare rock to 1.517 for redwoods), mirroring BCMv8's `AET = Kv × PET × f(soil_water)` formulation. The AET head remains an MLP (260→64→1) that receives all channels concatenated.
+
+**Results vs v10-kbdi-aet-only (same routing, no Kv):**
+
+- **PET: marginal improvement** — NSE 0.928 vs 0.927, RMSE 16.1 vs 16.3. Kv doesn't directly affect the PET head but the overall loss landscape may have shifted slightly.
+- **PCK: improved** — NSE 0.930 vs 0.929, pbias 8.7% vs 13.5%, KGE 0.871 vs 0.826. The Kv channel helps PCK indirectly — Kv=0 bare/water pixels have distinctive snowpack behavior.
+- **AET: regressed** — NSE 0.835 vs 0.840, pbias 10.0% vs 6.3%, RMSE 12.3 vs 12.1. The MLP head receives Kv as just another concatenated channel and cannot easily learn the multiplicative structure `Kv × PET × stress`. Instead, it overpredicts AET for vegetated pixels (high Kv) without properly learning the stress constraint.
+- **CWD: mixed** — NSE 0.900 vs 0.897 (slight improvement), but pbias -4.1% vs -2.6% (worse). The AET overprediction cascades into CWD.
+- **AET extremes: flat** — P95 bias -23.4mm vs -23.3mm (no change). P95 RMSE 29.0 vs 29.6 (marginal improvement). The MLP cannot use Kv to fix the extreme underprediction.
+- **CWD extremes: mixed** — P99 hit rate 0.713 (new best-ever), but P95 bias -2.6mm vs -0.6mm (regression). The Kv channel helps the model identify which pixels should have high CWD (low-Kv bare pixels) but doesn't improve the magnitude prediction.
+
+**Key insight:** Kv provides the right information but the MLP architecture cannot exploit it. The multiplicative relationship `AET = Kv × PET × f(soil_water)` requires the network to approximate multiplication from concatenated inputs, which ReLU networks do poorly — they use piecewise-linear segments that break down at extremes. The product `Kv × PET × stress` is largest in late summer (high PET, vegetated pixels, moderate soil moisture), exactly where underprediction is worst. This motivates the stress-fraction architecture (v11-stress-frac) that encodes the multiplicative structure explicitly: `stress × Kv × PET + correction`.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -346,7 +370,11 @@ v9k + KBDI replaces drought_code ... AET NSE 0.824, CWD NSE 0.896  (better than 
  |                                       KBDI less harmful than DC but still doesn't improve on no-drought baseline
  |                                       Drought features need inhibitory mechanism for AET stage to be useful
 v10 KBDI routed to AET head only .. AET NSE 0.840, CWD NSE 0.897  (first drought feature to beat v8c baseline!)
-                                         PET recovered (0.927), AET improved over both v9-kbdi and v8c
-                                         CWD extremes near-best (P95 bias -0.6mm, P99 bias -0.6mm)
-                                         Validates routing hypothesis: drought signals help when connected to right stage
+ |                                       PET recovered (0.927), AET improved over both v9-kbdi and v8c
+ |                                       CWD extremes near-best (P95 bias -0.6mm, P99 bias -0.6mm)
+ |                                       Validates routing hypothesis: drought signals help when connected to right stage
+v11 + Kv crop coeff at AET (MLP) . AET NSE 0.835, CWD NSE 0.900  (AET regressed, CWD P99 hit rate best-ever 0.713)
+                                         Kv provides right info but MLP can't learn multiplicative structure
+                                         AET pbias 10.0% — overpredicts vegetated pixels without stress constraint
+                                         AET P95 bias -23.4mm unchanged — motivates stress-fraction architecture
 ```

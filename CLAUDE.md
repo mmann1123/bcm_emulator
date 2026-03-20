@@ -63,11 +63,13 @@ Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [
 
 Stage 2: PET head (256→1, softplus) + PCK head (256→1, softplus)  [no KBDI]
 
-Stage 3: AET head ([256+PET+PCK+KBDI+Kv]=260 → 64 → 1)  [KBDI+Kv injected here]
-          Kv = BCM Table 6 monthly crop coefficient (time-varying, per veg class)
-          AET ≤ PET enforced post-denormalization, not in the head
-
-CWD = PET - AET (algebraic, no parameters)
+Stage 3: AET stress-fraction head (mirrors BCMv8: AET = Kv × PET × f(soil_water))
+         stress = sigmoid(stress_net([backbone(256), KBDI, PCK] → 32 → 1))  ∈ [0, 1]
+         mult = clamp(stress × Kv, max=1.0) × PET_norm
+         correction = correction_net([backbone(256), KBDI, PET, PCK] → 32 → 1)
+         AET = mult + correction
+         CWD = PET − AET (algebraic)
+         AET ≤ PET enforced post-denormalization, not in the head
 ```
 
 KBDI is excluded from the backbone to prevent the dominant "high KBDI = hot = high PET" encoding from polluting AET. Instead, KBDI is injected directly into the AET head where it acts as a drought-stress inhibitor. Kv (BCM Table 6 monthly crop coefficient) is also injected directly into the AET head, providing the vegetation-specific seasonal transpiration coefficient that mirrors BCMv8's `AET = Kv × PET × f(soil_water)` formulation.
