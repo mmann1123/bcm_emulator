@@ -22,6 +22,7 @@ paths:
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
   snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
+  kv_table_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/bcmv8_kv_table.json
 
 # BCM grid reference (EPSG:3310, 1km)
 grid:
@@ -64,7 +65,7 @@ model:
       in_channels: 256
       activation: softplus  # guarantees >= 0
     aet_stress:
-      in_channels: 259  # 256 backbone + PET + PCK + KBDI
+      in_channels: 260  # 256 backbone + PET + PCK + KBDI + Kv
 
 # Training
 training:

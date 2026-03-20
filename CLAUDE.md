@@ -54,7 +54,7 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 23, T) + KBDI (B, 1, T)  → _prepend_fveg → (B, 31, T) → Backbone
+Input: (B, 23, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 31, T) → Backbone
   23 = 10 dynamic (excl. KBDI) + 13 continuous static
   31 = 23 + 8 FVEG embedding
 
@@ -63,19 +63,20 @@ Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [
 
 Stage 2: PET head (256→1, softplus) + PCK head (256→1, softplus)  [no KBDI]
 
-Stage 3: AET head ([256+PET+PCK+KBDI]=259 → 64 → 1)  [KBDI injected here]
+Stage 3: AET head ([256+PET+PCK+KBDI+Kv]=260 → 64 → 1)  [KBDI+Kv injected here]
+          Kv = BCM Table 6 monthly crop coefficient (time-varying, per veg class)
           AET ≤ PET enforced post-denormalization, not in the head
 
 CWD = PET - AET (algebraic, no parameters)
 ```
 
-KBDI is excluded from the backbone to prevent the dominant "high KBDI = hot = high PET" encoding from polluting AET. Instead, KBDI is injected directly into the AET head where it acts as a drought-stress inhibitor.
+KBDI is excluded from the backbone to prevent the dominant "high KBDI = hot = high PET" encoding from polluting AET. Instead, KBDI is injected directly into the AET head where it acts as a drought-stress inhibitor. Kv (BCM Table 6 monthly crop coefficient) is also injected directly into the AET head, providing the vegetation-specific seasonal transpiration coefficient that mirrors BCMv8's `AET = Kv × PET × f(soil_water)` formulation.
 
 Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between ground-truth and model predictions via `BCMEmulator.PCK_PREV_IDX` / `AET_PREV_IDX`. Curriculum: 100% GT for first half of training, then linear ramp to 100% predicted.
 
 ### Input channels
 
-**Dynamic (10 backbone + 1 KBDI routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd | kbdi (AET-only)
+**Dynamic (10 backbone + 1 KBDI routed to AET + 1 Kv routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd | kbdi (AET-only) | kv (AET-only, from BCM Table 6)
 
 **Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
 - Channels 0-12 are continuous (z-score normalized)
@@ -99,7 +100,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 13 static + 8 fveg embed = 31; KBDI routed separately), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 13 static + 8 fveg embed = 31; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Loss Function
 

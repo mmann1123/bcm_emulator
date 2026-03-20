@@ -67,9 +67,30 @@ python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('
 
 
 
-python train.py --run-id v10-kbdi-aet-only  --notes "KBDI routed only to AET head (bypasses backbone); 10 dyn through backbone, KBDI  injected at AET stage"                                                                              │
+python train.py --run-id v10-kbdi-aet-only  --notes "KBDI routed only to AET head (bypasses backbone); 10 dyn through backbone, KBDI  injected at AET stage" 
 
 python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v10-kbdi-aet-only
 
+python -c "from src.utils.snapshot import compare_snapshots;compare_snapshots('v8c-mse','v10-kbdi-aet-only', project_root='.')"
 
-python -c "from src.utils.snapshot import compare_snapshots;compare_snapshots('v8c-mse','v10-kbdi-aet-only', project_root='.')"                                 
+
+
+
+ python -c "                                                                                  
+ from src.data.dataset import BCMPixelDataset                                                                         
+ import numpy as np, zarr                                                                                             
+ s = zarr.open('data/bcm_dataset.zarr', 'r')                                                                          
+ mask = np.array(s['meta/valid_mask'])                                                                                
+ rows, cols = np.where(mask)                                                                                          
+ pix = np.column_stack([rows[:100], cols[:100]])                                                                      
+ ds = BCMPixelDataset('data/bcm_dataset.zarr', pix, slice(0, 480), seq_len=48)                                        
+ sample = ds[0]                                                                                                       
+ print('kv shape:', sample['kv'].shape)       # expect (1, 48)                                                        
+ print('kv varies:', sample['kv'][0, :12])    # should show monthly variation                                         
+ print('inputs shape:', sample['inputs'].shape)                                                                       
+ "                                                                                                                    
+python train.py --run-id v11-kv-aet  --notes "BCM Table 6 Kv as time-varying channel at AET head"       
+
+python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v11-kv-aet
+
+python -c "from src.utils.snapshot import compare_snapshots;compare_snapshots('v5-awc-windward','v11-kv-aet', project_root='.')"

@@ -110,12 +110,15 @@ def main():
     observed = {var: np.full((T_test, H, W), np.nan, dtype=np.float32) for var in ["pet", "pck", "aet", "cwd"]}
     predicted = {var: np.full((T_test, H, W), np.nan, dtype=np.float32) for var in ["pet", "pck", "aet", "cwd"]}
 
+    kv_table_path = getattr(cfg.paths, "kv_table_path", "")
+
     test_dataset = BCMPixelDataset(
         zarr_path=cfg.paths.zarr_store,
         pixel_indices=pixel_indices,
         time_slice=test_slice,
         seq_len=T_test,
         normalize=True,
+        kv_table_path=kv_table_path,
     )
 
     # Override FVEG IDs with fullveg (unfiltered) for inference
@@ -142,12 +145,14 @@ def main():
         gt_aet = torch.stack([b["gt_aet_prev"] for b in batch])
         fveg_ids = torch.stack([b["fveg_id"] for b in batch])
         kbdi = torch.stack([b["kbdi"] for b in batch])
+        kv = torch.stack([b["kv"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
         return {
             "inputs": inputs,
             "kbdi": kbdi,
+            "kv": kv,
             "targets": targets,
             "gt_pck_prev": gt_pck,
             "gt_aet_prev": gt_aet,
@@ -170,9 +175,10 @@ def main():
             gt_aet_prev = batch["gt_aet_prev"].to(device)
             fveg_ids = batch["fveg_ids"].to(device)
             kbdi = batch["kbdi"].to(device)
+            kv = batch["kv"].to(device)
 
             # Autoregressive inference (tf_ratio=0.0)
-            preds = model(inputs, tf_ratio=0.0, gt_pck_prev=gt_pck_prev, gt_aet_prev=gt_aet_prev, fveg_ids=fveg_ids, kbdi=kbdi)
+            preds = model(inputs, tf_ratio=0.0, gt_pck_prev=gt_pck_prev, gt_aet_prev=gt_aet_prev, fveg_ids=fveg_ids, kbdi=kbdi, kv=kv)
 
             B = inputs.shape[0]
             for b in range(B):

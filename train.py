@@ -53,12 +53,15 @@ def main():
         subsample_frac=cfg.data.pixel_subsample_frac,
     )
 
+    kv_table_path = getattr(cfg.paths, "kv_table_path", "")
+
     train_dataset = BCMPixelDataset(
         zarr_path=cfg.paths.zarr_store,
         pixel_indices=pixel_indices,
         time_slice=splits["train"],
         seq_len=cfg.temporal.sequence_length,
         normalize=True,
+        kv_table_path=kv_table_path,
     )
 
     test_dataset = BCMPixelDataset(
@@ -67,6 +70,7 @@ def main():
         time_slice=splits["test"],
         seq_len=min(cfg.temporal.sequence_length, splits["test"].stop - splits["test"].start),
         normalize=True,
+        kv_table_path=kv_table_path,
     )
 
     # Ecoregion-stratified sampler for training
@@ -88,12 +92,14 @@ def main():
         gt_aet = torch.stack([b["gt_aet_prev"] for b in batch])
         fveg_ids = torch.stack([b["fveg_id"] for b in batch])
         kbdi = torch.stack([b["kbdi"] for b in batch])
+        kv = torch.stack([b["kv"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
         return {
             "inputs": inputs,
             "kbdi": kbdi,
+            "kv": kv,
             "targets": targets,
             "gt_pck_prev": gt_pck,
             "gt_aet_prev": gt_aet,

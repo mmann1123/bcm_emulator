@@ -1,5 +1,6 @@
 """BCMPixelDataset: pixel time-series from zarr store."""
 
+import json as _json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -38,6 +39,7 @@ class BCMPixelDataset(Dataset):
         time_slice: slice,
         seq_len: int = 48,
         normalize: bool = True,
+        kv_table_path: str = "",
     ):
         store = zarr.open(zarr_path, mode="r")
         self.pixel_indices = pixel_indices  # (N, 2) array of (row, col)
@@ -101,6 +103,31 @@ class BCMPixelDataset(Dataset):
             self._fveg_ids = static_all[:, self.n_static_cont].astype(np.int64)  # (N_pixels,)
         else:
             self._fveg_ids = np.zeros(self.n_pixels, dtype=np.int64)
+
+        # Kv table: per-vegetation, per-month crop coefficients from BCM Table 6
+        self._has_kv = False
+        if kv_table_path and Path(kv_table_path).exists():
+            with open(kv_table_path) as f:
+                kv_data = _json.load(f)
+            fveg_map = _json.loads(store.attrs.get("fveg_class_map", "{}"))
+            whrnum_to_cid = {}
+            for cid_str, info in fveg_map.items():
+                whrnum_to_cid[str(info["whrnum"])] = int(cid_str)
+            max_cid = max(whrnum_to_cid.values()) + 1 if whrnum_to_cid else 1
+            self._kv_lookup = np.zeros((max_cid, 12), dtype=np.float32)
+            for whrnum_str, vals in kv_data["kv_table"].items():
+                cid = whrnum_to_cid.get(whrnum_str)
+                if cid is not None:
+                    self._kv_lookup[cid] = vals
+            all_times = np.array(store["meta/time"])[t_start:t_end]
+            self._month_indices = np.array(
+                [int(t[5:7]) - 1 for t in all_times], dtype=np.int64
+            )
+            self._has_kv = True
+            logger.info(
+                f"Loaded Kv table: {self._kv_lookup.shape[0]} classes, "
+                f"range [{self._kv_lookup.min():.3f}, {self._kv_lookup.max():.3f}]"
+            )
 
         # Targets: batch-read zarr chunks -> (N_pixels, 4, T_load)
         target_names = ["pet", "pck", "aet", "cwd"]
@@ -190,10 +217,19 @@ class BCMPixelDataset(Dataset):
             gt_pck_prev = (gt_pck_prev - self.tgt_mean[1]) / self.tgt_std[1]
             gt_aet_prev = (gt_aet_prev - self.tgt_mean[2]) / self.tgt_std[2]
 
+        # Kv: current-month value for this pixel's veg type → (1, seq_len)
+        if self._has_kv:
+            fveg_id = self._fveg_ids[pixel_idx]
+            month_idxs = self._month_indices[t_start:t_end]  # (seq_len,) 0-based
+            kv = self._kv_lookup[fveg_id, month_idxs][np.newaxis, :].copy()  # (1, seq_len)
+        else:
+            kv = np.zeros((1, self.seq_len), dtype=np.float32)
+
         # Convert to tensors
         result = {
             "inputs": torch.tensor(inputs, dtype=torch.float32),
             "kbdi": torch.tensor(kbdi, dtype=torch.float32),  # (1, seq_len)
+            "kv": torch.tensor(kv, dtype=torch.float32),  # (1, seq_len)
             "targets": {
                 var: torch.tensor(targets[var], dtype=torch.float32).unsqueeze(0)
                 for var in ["pet", "pck", "aet", "cwd"]
