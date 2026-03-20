@@ -139,7 +139,7 @@ def build_zarr_store(
     store = zarr.open(zarr_path, mode="w")
 
     # Dynamic inputs: (T, 11, H, W)
-    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, drought_code
+    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi
     dynamic = store.zeros(
         name="inputs/dynamic", shape=(T, 11, H, W), chunks=(12, 11, H, W), dtype="float32"
     )
@@ -282,7 +282,7 @@ def build_zarr_store(
 
     # Track missing data for summary
     missing_counts = {"ppt": 0, "tmin": 0, "tmax": 0, "wet_days": 0,
-                      "ppt_intensity": 0, "srad": 0, "drought_code": 0,
+                      "ppt_intensity": 0, "srad": 0, "kbdi": 0,
                       "aet": 0, "cwd": 0, "pck": 0}
 
     for t_idx, ym in enumerate(time_index):
@@ -338,12 +338,12 @@ def build_zarr_store(
         vpd[~valid_mask] = 0.0
         dynamic[t_idx, 9] = vpd
 
-        # --- Drought Code (from PRISM daily-derived) ---
-        dc_path = _find_file(prism_processed / "drought_code", f"*{ym_compact}*.tif")
-        if dc_path:
-            dynamic[t_idx, 10] = _read_and_align(str(dc_path), bcm_profile)
+        # --- KBDI (from PRISM daily-derived) ---
+        kbdi_path = _find_file(prism_processed / "kbdi", f"*{ym_compact}*.tif")
+        if kbdi_path:
+            dynamic[t_idx, 10] = _read_and_align(str(kbdi_path), bcm_profile)
         else:
-            missing_counts["drought_code"] += 1
+            missing_counts["kbdi"] += 1
 
         # --- Targets: aet, cwd from BCM local outputs ---
         aet_data = None
@@ -455,7 +455,7 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     n_channels = 11
     channel_names = [
         "ppt", "tmin", "tmax", "wet_days", "ppt_intensity",
-        "srad", "snow_frac", "pck_prev", "aet_prev", "vpd", "drought_code",
+        "srad", "snow_frac", "pck_prev", "aet_prev", "vpd", "kbdi",
     ]
 
     n_valid = valid_mask.sum()

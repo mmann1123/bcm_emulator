@@ -18,6 +18,7 @@ paths:
   aridity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_aridity_v8.tif
   field_capacity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp0010_v8.tif
   wilting_point_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp6000_v8.tif
+  mean_annual_ppt_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_pptaveann.asc
   checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
   output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
   snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots

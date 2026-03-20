@@ -113,6 +113,7 @@ def main():
         ("hdd35", prism_monthly / "hdd35", "hdd35"),
         ("heat_stress", prism_monthly / "heat_stress", "heat_stress"),
         ("drought_code", prism_monthly / "drought_code", "drought_code"),
+        ("kbdi", prism_monthly / "kbdi", "kbdi"),
     ]
 
     for name, fdir, prefix in feature_configs:

@@ -73,7 +73,7 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 ### Input channels
 
-**Dynamic (11):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, drought_code
+**Dynamic (11):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi
 
 **Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
 - Channels 0-12 are continuous (z-score normalized)

@@ -158,6 +158,7 @@ def main():
             daily_ppt_dir=str(cfg.paths.prism_daily_dir) + "/ppt_daily",
             out_dir=cfg.paths.prism_monthly_dir,
             bcm_profile=bcm_profile,
+            mean_annual_ppt_path=getattr(cfg.paths, "mean_annual_ppt_path", None),
         )
 
     # Step 8: Build zarr store

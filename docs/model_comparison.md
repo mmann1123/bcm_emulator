@@ -20,6 +20,8 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v8-soil-physics | 2026-03-18 | Huber+Extreme | v5 base + soil_depth, aridity_index, FC, WP, SOM; AWC removed; 14 static channels |
 | v8b-no-extreme | 2026-03-18 | Huber | v8 soil physics channels with extreme_weight=0.0 (pure Huber loss) |
 | v8c-mse | 2026-03-18 | MSE | v8b architecture/data with MSE loss (controlled comparison vs Huber) |
+| v9-drought-code | 2026-03-19 | MSE | v8c + drought_code dynamic channel; 12 dynamic inputs, MSE loss |
+| v9-kbdi | 2026-03-19 | MSE | v8c base + KBDI dynamic channel (replaces drought_code); 11 dynamic inputs, MSE loss |
 
 ## Global Performance Metrics
 
@@ -39,6 +41,8 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v8-soil-physics | 0.914 | 0.935 | **0.851** | 0.894 |
 | v8b-no-extreme | **0.927** | 0.916 | 0.839 | 0.899 |
 | v8c-mse | **0.927** | 0.930 | 0.834 | 0.907 |
+| v9-drought-code | 0.927 | 0.932 | 0.810 | 0.888 |
+| v9-kbdi | 0.925 | 0.929 | 0.824 | 0.896 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -56,6 +60,8 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v8-soil-physics | 0.930 | 0.923 | **0.791** | 0.920 |
 | v8b-no-extreme | 0.944 | 0.816 | 0.767 | **0.935** |
 | v8c-mse | **0.946** | 0.918 | 0.744 | 0.928 |
+| v9-drought-code | **0.953** | 0.887 | 0.738 | 0.902 |
+| v9-kbdi | 0.952 | 0.855 | 0.743 | 0.907 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -73,6 +79,8 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v8-soil-physics | 17.7 | 13.4 | **11.6** | 19.0 |
 | v8b-no-extreme | 16.3 | 15.2 | 12.1 | 18.5 |
 | v8c-mse | 16.3 | 13.8 | 12.3 | 17.7 |
+| v9-drought-code | 16.3 | 13.7 | 13.1 | 19.5 |
+| v9-kbdi | 16.5 | 14.0 | 12.7 | 18.8 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -90,6 +98,8 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v8-soil-physics | -0.3 | **4.2** | 12.7 | -4.4 |
 | v8b-no-extreme | -1.0 | 13.3 | 4.9 | -2.0 |
 | v8c-mse | **-0.9** | **5.0** | 6.4 | -2.5 |
+| v9-drought-code | -1.1 | 8.2 | 10.3 | -4.4 |
+| v9-kbdi | -1.8 | 12.4 | 6.6 | -3.8 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -106,6 +116,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v8-soil-physics | 24.6 | -15.9 | 0.755 |
 | v8b-no-extreme | 29.3 | -23.3 | 0.757 |
 | v8c-mse | 30.6 | -25.5 | **0.765** |
+| v9-drought-code | 31.3 | -26.3 | 0.727 |
+| v9-kbdi | 31.9 | -26.4 | 0.740 |
 
 ### AET Extremes (P99)
 
@@ -118,6 +130,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v8-soil-physics | 29.8 | -24.3 | 0.561 |
 | v8b-no-extreme | 37.1 | -33.4 | 0.572 |
 | v8c-mse | 38.6 | -35.7 | **0.602** |
+| v9-drought-code | 40.0 | -37.3 | 0.573 |
+| v9-kbdi | 41.3 | -38.4 | 0.523 |
 
 ### CWD Extremes (P95)
 
@@ -130,6 +144,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v8-soil-physics | 9.1 | -2.5 | 0.783 |
 | v8b-no-extreme | 8.7 | **+0.6** | **0.804** |
 | v8c-mse | 9.0 | -1.3 | 0.793 |
+| v9-drought-code | 13.7 | -4.1 | 0.758 |
+| v9-kbdi | 10.5 | -4.6 | 0.798 |
 
 ### CWD Extremes (P99)
 
@@ -142,6 +158,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v8-soil-physics | 6.1 | -2.5 | 0.672 |
 | v8b-no-extreme | **5.0** | **+0.6** | 0.683 |
 | v8c-mse | 6.0 | -1.2 | **0.686** |
+| v9-drought-code | 9.5 | -2.3 | 0.666 |
+| v9-kbdi | 8.2 | -4.2 | 0.670 |
 
 ## Analysis for Wildfire Modeling
 
@@ -223,6 +241,34 @@ v8c is identical to v8b (same data, same architecture, same uniform weights, ext
 
 **Key insight:** MSE is the better choice for this architecture. It wins on PCK (dramatically), CWD global, and exceedance hit rates, while only marginally losing on AET and CWD extremes. The Huber loss was introduced in v6 to stabilize training, but with the richer v8 soil physics channels, MSE training is stable without it (best epoch 67 vs 78, val loss curves well-behaved). The persistent AET extreme underprediction (-18 to -26mm at P95) is a data/feature problem, not a loss function problem — motivating the v9 fire features approach.
 
+### v9-drought-code: fire features as dynamic inputs
+
+v9 adds drought_code (Van Wagner 1987 DC) as a 12th dynamic input channel, building on v8c's MSE loss and soil physics static channels. The hypothesis was that a physically-based deep fuel moisture index would help the model capture drought-driven AET/CWD dynamics.
+
+**Results vs v8c-mse (same loss, same static channels, minus drought_code):**
+
+- **PET: best KGE ever** — KGE 0.953 (new record, beating v8c's 0.946), NSE 0.927 (tied). The drought code provides useful supplementary temperature/moisture information for PET estimation.
+- **PCK: slight improvement** — NSE 0.932 vs 0.930, RMSE 13.7 vs 13.8. Marginal.
+- **AET: regressed** — NSE 0.810 vs 0.834, KGE 0.738 vs 0.744, pbias 10.3% vs 6.4%. The model overpredicts AET more with drought code present, suggesting it interprets high DC (dry conditions) as a signal for *more* ET rather than drought-limited ET.
+- **CWD: regressed** — NSE 0.888 vs 0.907, RMSE 19.5 vs 17.7, pbias -4.4% vs -2.5%. The AET overprediction cascades into CWD underprediction (CWD = PET - AET).
+- **All extreme metrics worse** — AET P95 bias -26.3mm (vs -25.5mm), CWD P95 bias -4.1mm (vs -1.3mm), CWD P95 RMSE 13.7 vs 9.0mm. The drought code feature actively hurt extreme value prediction.
+
+**Key insight:** The drought code feature helps PET (best-ever KGE) but hurts everything downstream. The likely mechanism: DC is high when it's hot and dry, which correlates with high PET — so it's a useful PET predictor. But the AET head misinterprets DC: high DC should *constrain* AET (vegetation is drought-stressed, stomata close), but the model learns the opposite association (high DC → high temperature → high AET). This is a classic case of a feature providing the right information for the wrong stage of the model. The drought code might need to be connected only to the AET/CWD heads (not the shared backbone), or the model needs an explicit mechanism to learn that DC is an *inhibitor* of AET under drought conditions.
+
+### v9-kbdi: KBDI replaces Drought Code
+
+v9-kbdi replaces the Van Wagner Drought Code (unbounded, 0-8000+) with the Keetch-Byram Drought Index (bounded 0-800) as dynamic channel 10. KBDI showed higher correlation with CWD extreme bias (r=0.571 vs 0.545) in the pre-analysis.
+
+**Results vs v8c-mse (same architecture, no drought feature):**
+
+- **AET: improved over v9-drought-code** — NSE 0.824 vs 0.810 (DC), pbias 6.6% vs 10.3% (DC). KBDI partially avoids the DC misinterpretation problem, but still slightly worse than v8c baseline (NSE 0.834).
+- **CWD: improved over v9-drought-code** — NSE 0.896 vs 0.888 (DC), RMSE 18.8 vs 19.5 (DC). Still below v8c baseline (NSE 0.907).
+- **PET: slight regression** — NSE 0.925 vs 0.927 (v8c), KGE 0.952 (near v9-DC's 0.953 best-ever).
+- **PCK: degraded** — pbias 12.4% vs 5.0% (v8c). Similar pattern to v9-drought-code (8.2%).
+- **CWD extremes: better than DC** — P95 RMSE 10.5 vs 13.7 (DC), P99 RMSE 8.2 vs 9.5 (DC). But still worse than v8c baseline (P95 9.0, P99 6.0).
+
+**Key insight:** KBDI is a better drought feature than Drought Code — it causes less damage to AET/CWD predictions. However, neither drought index improves on the v8c baseline without a drought feature. The fundamental issue persists: the model treats drought signals (high KBDI = dry) as correlated with high ET rather than as an ET constraint. A drought feature would need to be connected specifically to the AET stage with an inhibitory mechanism to be useful.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -259,7 +305,14 @@ v8b Pure Huber + soil physics ........ AET NSE 0.839, CWD NSE 0.899
  |                                       CWD P95 bias +0.6mm (first positive!), hit rate 0.804 (best)
  |                                       AET extremes regressed (P95 bias -23.3mm)
 v8c MSE loss (same arch/data) ....... AET NSE 0.834, CWD NSE 0.907
-                                         PCK dramatically better (pbias 5.0% vs 13.3%)
-                                         CWD global better, CWD extremes slightly worse
-                                         Confirms AET extreme bias is a feature problem, not loss problem
+ |                                       PCK dramatically better (pbias 5.0% vs 13.3%)
+ |                                       CWD global better, CWD extremes slightly worse
+ |                                       Confirms AET extreme bias is a feature problem, not loss problem
+v9  + drought_code dynamic channel .. AET NSE 0.810, CWD NSE 0.888  REGRESSION
+ |                                       PET KGE best-ever (0.953), but AET/CWD/extremes all worse
+ |                                       DC helps PET but AET misinterprets it (high DC → more ET, not less)
+ |                                       Feature-stage mismatch: DC useful for energy balance, harmful for water balance
+v9k + KBDI replaces drought_code ... AET NSE 0.824, CWD NSE 0.896  (better than DC, worse than v8c)
+                                         KBDI less harmful than DC but still doesn't improve on no-drought baseline
+                                         Drought features need inhibitory mechanism for AET stage to be useful
 ```
