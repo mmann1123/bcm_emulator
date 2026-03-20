@@ -34,8 +34,7 @@ python train.py --run-id v8b-no-extreme --notes "v8 soil physics channels (soil_
                                                                                                                             
 python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v8b-no-extreme                 
                                                                                                                             
-python -c "from src.utils.snapshot import compare_snapshots;                                      
-  compare_snapshots('v5-awc-windward','v8b-no-extreme', project_root='.')"
+python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v5-awc-windward','v8b-no-extreme', project_root='.')"
 
 
    # Phase 1: Download daily tmax (several hours, run first)
@@ -57,6 +56,20 @@ python -c "from src.utils.snapshot import compare_snapshots;
      --notes "v8b + [selected features]; [N] dynamic channels"
 
  # Phase 6: Evaluate + compare
- conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v9-fire-features
- conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots;
- compare_snapshots('v8b-no-extreme','v9-fire-features', project_root='.')"
+ conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v9-drought-code
+
+
+
+python prepare_data.py --steps zarr
+
+python train.py --run-id v9-drought-code --notes "v8c + drought_code dynamic channel; 11 dynamic, MSE loss"
+python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v5-awc-windward','v9-drought-code', project_root='.')"
+
+
+
+python train.py --run-id v10-kbdi-aet-only  --notes "KBDI routed only to AET head (bypasses backbone); 10 dyn through backbone, KBDI  injected at AET stage"                                                                              │
+
+python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v10-kbdi-aet-only
+
+
+python -c "from src.utils.snapshot import compare_snapshots;compare_snapshots('v8c-mse','v10-kbdi-aet-only', project_root='.')"                                 

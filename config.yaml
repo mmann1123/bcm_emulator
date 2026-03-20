@@ -50,7 +50,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 32  # 11 dynamic + 13 static + 8 fveg embedding
+    in_channels: 31  # 10 dynamic + 13 static + 8 fveg embedding (KBDI routed separately to AET head)
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
@@ -64,7 +64,7 @@ model:
       in_channels: 256
       activation: softplus  # guarantees >= 0
     aet_stress:
-      in_channels: 258  # 256 backbone + PET + PCK
+      in_channels: 259  # 256 backbone + PET + PCK + KBDI
 
 # Training
 training:

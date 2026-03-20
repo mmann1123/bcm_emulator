@@ -55,9 +55,11 @@ class BCMPixelDataset(Dataset):
         self.n_pixels = len(pixel_indices)
 
         # Determine channel counts from zarr shape
-        self.n_dyn = store["inputs/dynamic"].shape[1]  # 10
-        n_static_total = store["inputs/static"].shape[0]  # 6
-        self.n_static_cont = n_static_total - 1  # 5 (last channel is FVEG)
+        self.n_dyn_total = store["inputs/dynamic"].shape[1]  # 11 (incl. KBDI)
+        self.kbdi_channel = 10  # KBDI is dynamic channel 10
+        self.n_dyn = self.n_dyn_total - 1  # 10 (backbone channels, excl. KBDI)
+        n_static_total = store["inputs/static"].shape[0]  # 14
+        self.n_static_cont = n_static_total - 1  # 13 (last channel is FVEG)
 
         # Load normalization stats
         if normalize:
@@ -79,13 +81,13 @@ class BCMPixelDataset(Dataset):
 
         logger.info(f"Preloading data for {len(pixel_indices)} pixels into RAM...")
 
-        # Dynamic inputs: read each timestep once, extract all pixels -> (N_pixels, n_dyn, T_load)
-        dynamic_zarr = store["inputs/dynamic"]  # (T, n_dyn, H, W)
+        # Dynamic inputs: read each timestep once, extract all pixels -> (N_pixels, n_dyn_total, T_load)
+        dynamic_zarr = store["inputs/dynamic"]  # (T, n_dyn_total, H, W)
         T_load = t_end - t_start
-        self._dynamic = np.empty((self.n_pixels, self.n_dyn, T_load), dtype=np.float32)
+        self._dynamic = np.empty((self.n_pixels, self.n_dyn_total, T_load), dtype=np.float32)
         for t in range(T_load):
             t_abs = t_start + t
-            data_t = np.array(dynamic_zarr[t_abs])  # (n_dyn, H, W)
+            data_t = np.array(dynamic_zarr[t_abs])  # (n_dyn_total, H, W)
             self._dynamic[:, :, t] = data_t[:, rows, cols].T.astype(np.float32)
             if (t + 1) % 100 == 0:
                 logger.info(f"  Dynamic: {t+1}/{T_load} timesteps loaded")
@@ -123,15 +125,22 @@ class BCMPixelDataset(Dataset):
         t_start = self._t_offset + window_idx
         t_end = t_start + self.seq_len
 
-        # Dynamic inputs: (n_dyn, seq_len) from preloaded array
-        dynamic = self._dynamic[pixel_idx, :, t_start:t_end].copy()  # (n_dyn, seq_len)
+        # Dynamic inputs: (n_dyn_total, seq_len) from preloaded array
+        dynamic_all = self._dynamic[pixel_idx, :, t_start:t_end].copy()  # (n_dyn_total, seq_len)
+
+        # Separate KBDI from main dynamic channels
+        kbdi = dynamic_all[self.kbdi_channel:self.kbdi_channel + 1, :].copy()  # (1, seq_len)
+        dynamic = np.concatenate([
+            dynamic_all[:self.kbdi_channel],
+            dynamic_all[self.kbdi_channel + 1:],
+        ], axis=0)  # (n_dyn, seq_len) — KBDI removed
 
         # Static inputs: (n_static_cont,) tiled to (n_static_cont, seq_len)
         static = self._static[pixel_idx]  # (n_static_cont,)
         n_sc = static.shape[0]
         static_tiled = np.broadcast_to(static[:, np.newaxis], (n_sc, self.seq_len)).copy()
 
-        # Combine: (n_dyn + n_static_cont, seq_len)
+        # Combine: (n_dyn + n_static_cont, seq_len) — no KBDI
         inputs = np.concatenate([dynamic, static_tiled], axis=0)
 
         # Targets: (4, seq_len) from preloaded array
@@ -157,11 +166,21 @@ class BCMPixelDataset(Dataset):
 
         # Normalize
         if self.normalize:
-            # Dynamic channels (vectorized)
+            # Dynamic channels (excluding KBDI — use stats for channels 0..kbdi-1, kbdi+1..n_dyn_total-1)
             n_d = self.n_dyn
-            inputs[:n_d] = (inputs[:n_d] - self.dyn_mean[:, np.newaxis]) / self.dyn_std[:, np.newaxis]
+            dyn_mean_no_kbdi = np.concatenate([
+                self.dyn_mean[:self.kbdi_channel],
+                self.dyn_mean[self.kbdi_channel + 1:],
+            ])
+            dyn_std_no_kbdi = np.concatenate([
+                self.dyn_std[:self.kbdi_channel],
+                self.dyn_std[self.kbdi_channel + 1:],
+            ])
+            inputs[:n_d] = (inputs[:n_d] - dyn_mean_no_kbdi[:, np.newaxis]) / dyn_std_no_kbdi[:, np.newaxis]
             # Static channels (vectorized)
             inputs[n_d:] = (inputs[n_d:] - self.stat_mean[:, np.newaxis]) / self.stat_std[:, np.newaxis]
+            # KBDI normalized separately
+            kbdi = (kbdi - self.dyn_mean[self.kbdi_channel]) / self.dyn_std[self.kbdi_channel]
             # Targets
             for i, var in enumerate(["pet", "pck", "aet", "cwd"]):
                 targets[var] = (targets[var] - self.tgt_mean[i]) / self.tgt_std[i]
@@ -172,6 +191,7 @@ class BCMPixelDataset(Dataset):
         # Convert to tensors
         result = {
             "inputs": torch.tensor(inputs, dtype=torch.float32),
+            "kbdi": torch.tensor(kbdi, dtype=torch.float32),  # (1, seq_len)
             "targets": {
                 var: torch.tensor(targets[var], dtype=torch.float32).unsqueeze(0)
                 for var in ["pet", "pck", "aet", "cwd"]

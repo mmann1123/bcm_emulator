@@ -17,10 +17,14 @@ class BCMEmulator(nn.Module):
     Stage 3: AET predicted unconstrained (AET <= PET enforced post-denorm).
              CWD = PET - AET (algebraic, no parameters).
 
-    Input channels (17 continuous + 8 FVEG embed = 25 total):
+    KBDI is excluded from the backbone and injected directly into the AET head
+    to act as a drought-stress inhibitor without polluting PET/PCK encoding.
+
+    Input channels (23 continuous + 8 FVEG embed = 31 backbone):
         Dynamic (10): ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
-        Static (7): elevation, topo_solar, lat, lon, ksat, sand, clay (tiled across T)
+        Static (13): elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward
         FVEG embedding (8): from vegetation class ID lookup
+    KBDI (1): passed separately to AET head only
 
     Parameters
     ----------
@@ -56,8 +60,8 @@ class BCMEmulator(nn.Module):
         self.pet_head = PointwiseHead(bb_out, activation="softplus")
         self.pck_head = PointwiseHead(bb_out, activation="softplus")
 
-        # Stage 3 head: takes backbone + PET + PCK
-        self.aet_head = AETHead(bb_out + 2)
+        # Stage 3 head: takes backbone + PET + PCK + KBDI
+        self.aet_head = AETHead(bb_out + 3)
 
     def _prepend_fveg(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor]) -> torch.Tensor:
         """Concatenate FVEG embedding to input tensor if fveg is configured."""
@@ -75,6 +79,7 @@ class BCMEmulator(nn.Module):
         gt_pck_prev: Optional[torch.Tensor] = None,
         gt_aet_prev: Optional[torch.Tensor] = None,
         fveg_ids: Optional[torch.Tensor] = None,
+        kbdi: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """Forward pass with optional teacher forcing.
 
@@ -84,7 +89,7 @@ class BCMEmulator(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Shape (B, 17, T). Input features (10 dynamic + 7 continuous static).
+            Shape (B, C, T). Input features (10 dynamic + 13 static, no KBDI).
         tf_ratio : float
             Fraction of timesteps using ground-truth for pck_prev/aet_prev.
             1.0 = all GT (teacher forcing), 0.0 = all predicted.
@@ -94,6 +99,8 @@ class BCMEmulator(nn.Module):
             Shape (B, 1, T). Ground-truth AET(t-1) for teacher forcing.
         fveg_ids : torch.Tensor, optional
             Shape (B,). Integer FVEG class IDs for vegetation embedding.
+        kbdi : torch.Tensor, optional
+            Shape (B, 1, T). KBDI routed directly to AET head.
 
         Returns
         -------
@@ -103,13 +110,11 @@ class BCMEmulator(nn.Module):
         B, C, T = x.shape
 
         if tf_ratio >= 1.0 or gt_pck_prev is None or gt_aet_prev is None:
-            # Full parallel forward -- no autoregressive loop needed
-            return self._forward_parallel(x, fveg_ids)
+            return self._forward_parallel(x, fveg_ids, kbdi)
         else:
-            # Autoregressive with scheduled sampling
-            return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids)
+            return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi)
 
-    def _forward_parallel(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
+    def _forward_parallel(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor] = None, kbdi: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """Parallel forward pass (no teacher forcing substitution)."""
         x = self._prepend_fveg(x, fveg_ids)
         features = self.backbone(x)
@@ -117,8 +122,11 @@ class BCMEmulator(nn.Module):
         pet = self.pet_head(features)
         pck = self.pck_head(features)
 
-        # AET head gets backbone features + PET + PCK
-        aet_input = torch.cat([features, pet, pck], dim=1)
+        # AET head gets backbone features + PET + PCK + KBDI
+        aet_parts = [features, pet, pck]
+        if kbdi is not None:
+            aet_parts.append(kbdi)
+        aet_input = torch.cat(aet_parts, dim=1)
         aet = self.aet_head(aet_input, pet)
 
         cwd = pet - aet
@@ -132,6 +140,7 @@ class BCMEmulator(nn.Module):
         gt_pck_prev: torch.Tensor,
         gt_aet_prev: torch.Tensor,
         fveg_ids: Optional[torch.Tensor] = None,
+        kbdi: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """Autoregressive forward with scheduled sampling.
 
@@ -162,7 +171,6 @@ class BCMEmulator(nn.Module):
                     x_buf[:, self.AET_PREV_IDX, t] = aet_out[:, 0, t - 1]
 
             # Run backbone on sequence up to t+1 (causal, so only sees <=t)
-            # For efficiency, run on full sequence but only take output at t
             x_slice = self._prepend_fveg(x_buf[:, :, :t + 1], fveg_ids)
             features = self.backbone(x_slice)
 
@@ -172,7 +180,11 @@ class BCMEmulator(nn.Module):
             pet_t = self.pet_head(feat_t)
             pck_t = self.pck_head(feat_t)
 
-            aet_input_t = torch.cat([feat_t, pet_t, pck_t], dim=1)
+            # AET head gets backbone features + PET + PCK + KBDI
+            aet_parts = [feat_t, pet_t, pck_t]
+            if kbdi is not None:
+                aet_parts.append(kbdi[:, :, t:t + 1])
+            aet_input_t = torch.cat(aet_parts, dim=1)
             aet_t = self.aet_head(aet_input_t, pet_t)
 
             pet_out[:, :, t] = pet_t[:, :, 0]

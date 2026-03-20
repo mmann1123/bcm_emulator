@@ -87,11 +87,13 @@ def main():
         gt_pck = torch.stack([b["gt_pck_prev"] for b in batch])
         gt_aet = torch.stack([b["gt_aet_prev"] for b in batch])
         fveg_ids = torch.stack([b["fveg_id"] for b in batch])
+        kbdi = torch.stack([b["kbdi"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
         return {
             "inputs": inputs,
+            "kbdi": kbdi,
             "targets": targets,
             "gt_pck_prev": gt_pck,
             "gt_aet_prev": gt_aet,

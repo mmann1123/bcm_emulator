@@ -141,11 +141,13 @@ def main():
         gt_pck = torch.stack([b["gt_pck_prev"] for b in batch])
         gt_aet = torch.stack([b["gt_aet_prev"] for b in batch])
         fveg_ids = torch.stack([b["fveg_id"] for b in batch])
+        kbdi = torch.stack([b["kbdi"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
         return {
             "inputs": inputs,
+            "kbdi": kbdi,
             "targets": targets,
             "gt_pck_prev": gt_pck,
             "gt_aet_prev": gt_aet,
@@ -167,9 +169,10 @@ def main():
             gt_pck_prev = batch["gt_pck_prev"].to(device)
             gt_aet_prev = batch["gt_aet_prev"].to(device)
             fveg_ids = batch["fveg_ids"].to(device)
+            kbdi = batch["kbdi"].to(device)
 
             # Autoregressive inference (tf_ratio=0.0)
-            preds = model(inputs, tf_ratio=0.0, gt_pck_prev=gt_pck_prev, gt_aet_prev=gt_aet_prev, fveg_ids=fveg_ids)
+            preds = model(inputs, tf_ratio=0.0, gt_pck_prev=gt_pck_prev, gt_aet_prev=gt_aet_prev, fveg_ids=fveg_ids, kbdi=kbdi)
 
             B = inputs.shape[0]
             for b in range(B):
