@@ -1,6 +1,8 @@
 """Align all rasters to BCM grid, compute derived features, build zarr store."""
 
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -82,6 +84,124 @@ def compute_windward_index(
     return windward
 
 
+def _process_single_timestep(
+    t_idx: int,
+    ym: str,
+    sb_dir: Path,
+    daymet_processed: Path,
+    prism_processed: Path,
+    bcm_dir: str,
+    bcm_profile: dict,
+    valid_mask: np.ndarray,
+    snow_threshold: float,
+    snow_transition: float,
+) -> dict:
+    """Read all files for one timestep and return numpy arrays.
+
+    Does NOT write to zarr — the caller collects results and writes sequentially.
+    """
+    from ..utils.io_helpers import read_raster_as_masked
+
+    H, W = bcm_profile["height"], bcm_profile["width"]
+    year_str = ym[:4]
+    month_str = ym[5:7]
+    ym_compact = f"{year_str}{month_str}"
+
+    dynamic_slice = np.zeros((11, H, W), dtype=np.float32)
+    targets = {}
+    missing = {}
+
+    # --- ScienceBase climate inputs: ppt, tmin, tmax ---
+    for ch_idx, our_name in enumerate(["ppt", "tmin", "tmax"]):
+        fpath = _find_file(sb_dir / our_name, f"{our_name}-{ym_compact}.tif")
+        if fpath:
+            data = _read_bcm_grid_file(str(fpath))
+            data[~valid_mask] = 0.0
+            dynamic_slice[ch_idx] = data
+        else:
+            missing[our_name] = 1
+
+    # --- Wet days and ppt intensity (from PRISM daily-derived) ---
+    wet_path = _find_file(prism_processed / "wet_days", f"*{ym_compact}*.tif")
+    if wet_path:
+        dynamic_slice[3] = _read_and_align(str(wet_path), bcm_profile)
+    else:
+        missing["wet_days"] = 1
+
+    int_path = _find_file(prism_processed / "ppt_intensity", f"*{ym_compact}*.tif")
+    if int_path:
+        dynamic_slice[4] = _read_and_align(str(int_path), bcm_profile)
+    else:
+        missing["ppt_intensity"] = 1
+
+    # --- DAYMET srad ---
+    srad_path = _find_file(daymet_processed / "srad_bcm", f"srad-{ym_compact}.tif")
+    if srad_path:
+        dynamic_slice[5] = _read_and_align(str(srad_path), bcm_profile)
+    else:
+        missing["srad"] = 1
+
+    # --- Snow fraction (derived from tmin, tmax) ---
+    tmin_data = dynamic_slice[1]
+    tmax_data = dynamic_slice[2]
+    snow_frac = compute_snow_frac(
+        tmin_data, tmax_data,
+        threshold=snow_threshold, transition_width=snow_transition,
+    )
+    dynamic_slice[6] = snow_frac
+
+    # --- VPD (derived from tmin, tmax) ---
+    vpd = compute_vpd(tmin_data, tmax_data)
+    vpd[~valid_mask] = 0.0
+    dynamic_slice[9] = vpd
+
+    # --- KBDI (from PRISM daily-derived) ---
+    kbdi_path = _find_file(prism_processed / "kbdi", f"*{ym_compact}*.tif")
+    if kbdi_path:
+        dynamic_slice[10] = _read_and_align(str(kbdi_path), bcm_profile)
+    else:
+        missing["kbdi"] = 1
+
+    # --- Targets: aet, cwd from BCM local outputs ---
+    aet_data = None
+    cwd_data = None
+    for var in ["aet", "cwd"]:
+        fpath = _find_file(Path(bcm_dir) / var, f"{var}-{ym_compact}.tif")
+        if fpath:
+            data = read_raster_as_masked(str(fpath))
+            data[np.isnan(data)] = 0.0
+            targets[var] = data
+            if var == "aet":
+                aet_data = data
+            else:
+                cwd_data = data
+        else:
+            missing[var] = 1
+
+    # --- Target: PCK from local BCM first, then ScienceBase gap-fill ---
+    pck_fpath = _find_file(Path(bcm_dir) / "pck", f"pck-{ym_compact}.tif")
+    if pck_fpath is None:
+        pck_fpath = _find_file(sb_dir / "pck", f"pck-{ym_compact}.tif")
+    if pck_fpath:
+        pck_data = read_raster_as_masked(str(pck_fpath))
+        pck_data[np.isnan(pck_data)] = 0.0
+        targets["pck"] = pck_data
+    else:
+        missing["pck"] = 1
+
+    # --- Target: PET derived as AET + CWD ---
+    if aet_data is not None and cwd_data is not None:
+        targets["pet"] = aet_data + cwd_data
+
+    # Channels 7 (pck_prev) and 8 (aet_prev) left as zeros — filled in separate pass
+    return {
+        "t_idx": t_idx,
+        "dynamic": dynamic_slice,
+        "targets": targets,
+        "missing": missing,
+    }
+
+
 def build_zarr_store(
     zarr_path: str,
     bcm_dir: str,
@@ -121,9 +241,6 @@ def build_zarr_store(
         /meta/valid_mask   (H, W)         - boolean valid pixel mask
         /meta/pixel_elev   (H, W)         - elevation for stratification
     """
-    import rasterio
-    from rasterio.warp import reproject, Resampling
-
     from ..utils.io_helpers import (
         get_valid_mask,
         read_raster_as_masked,
@@ -273,110 +390,49 @@ def build_zarr_store(
     else:
         logger.warning("FVEG data not found; channel 13 will be zeros")
 
-    # ---- Dynamic inputs and targets ----
-    logger.info("Processing dynamic inputs and targets...")
-
+    # ---- Dynamic inputs and targets (parallel) ----
     sb_dir = Path(sciencebase_dir)
     daymet_processed = Path(daymet_dir)
     prism_processed = Path(prism_dir)
+
+    n_workers = min(20, os.cpu_count() or 4)
+    logger.info(
+        f"Processing dynamic inputs and targets with {n_workers} threads..."
+    )
 
     # Track missing data for summary
     missing_counts = {"ppt": 0, "tmin": 0, "tmax": 0, "wet_days": 0,
                       "ppt_intensity": 0, "srad": 0, "kbdi": 0,
                       "aet": 0, "cwd": 0, "pck": 0}
 
-    for t_idx, ym in enumerate(time_index):
-        if t_idx % 60 == 0:
-            logger.info(f"Processing timestep {t_idx}/{T}: {ym}")
+    done = 0
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(
+                _process_single_timestep,
+                t_idx, ym, sb_dir, daymet_processed, prism_processed,
+                bcm_dir, bcm_profile, valid_mask,
+                snow_threshold, snow_transition,
+            ): t_idx
+            for t_idx, ym in enumerate(time_index)
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            t = result["t_idx"]
 
-        year_str = ym[:4]
-        month_str = ym[5:7]
-        ym_compact = f"{year_str}{month_str}"
+            # Write to zarr in main thread (no concurrent chunk writes)
+            dynamic[t] = result["dynamic"]
+            for var in ["pet", "pck", "aet", "cwd"]:
+                if var in result["targets"]:
+                    store[f"targets/{var}"][t] = result["targets"][var]
 
-        # --- ScienceBase climate inputs: ppt, tmin, tmax ---
-        # Already resampled to BCM 1km grid during download
-        for ch_idx, our_name in enumerate(["ppt", "tmin", "tmax"]):
-            fpath = _find_file(sb_dir / our_name, f"{our_name}-{ym_compact}.tif")
-            if fpath:
-                data = _read_bcm_grid_file(str(fpath))
-                data[~valid_mask] = 0.0
-                dynamic[t_idx, ch_idx] = data
-            else:
-                missing_counts[our_name] += 1
+            # Accumulate missing counts
+            for var, count in result["missing"].items():
+                missing_counts[var] += count
 
-        # --- Wet days and ppt intensity (from PRISM daily-derived) ---
-        wet_path = _find_file(prism_processed / "wet_days", f"*{ym_compact}*.tif")
-        if wet_path:
-            dynamic[t_idx, 3] = _read_and_align(str(wet_path), bcm_profile)
-        else:
-            missing_counts["wet_days"] += 1
-
-        int_path = _find_file(prism_processed / "ppt_intensity", f"*{ym_compact}*.tif")
-        if int_path:
-            dynamic[t_idx, 4] = _read_and_align(str(int_path), bcm_profile)
-        else:
-            missing_counts["ppt_intensity"] += 1
-
-        # --- DAYMET srad ---
-        srad_path = _find_file(daymet_processed / "srad_bcm", f"srad-{ym_compact}.tif")
-        if srad_path:
-            dynamic[t_idx, 5] = _read_and_align(str(srad_path), bcm_profile)
-        else:
-            missing_counts["srad"] += 1
-
-        # --- Snow fraction (derived from tmin, tmax) ---
-        tmin_data = np.array(dynamic[t_idx, 1])
-        tmax_data = np.array(dynamic[t_idx, 2])
-        snow_frac = compute_snow_frac(
-            tmin_data, tmax_data,
-            threshold=snow_threshold, transition_width=snow_transition,
-        )
-        dynamic[t_idx, 6] = snow_frac
-
-        # --- VPD (derived from tmin, tmax) ---
-        vpd = compute_vpd(tmin_data, tmax_data)
-        vpd[~valid_mask] = 0.0
-        dynamic[t_idx, 9] = vpd
-
-        # --- KBDI (from PRISM daily-derived) ---
-        kbdi_path = _find_file(prism_processed / "kbdi", f"*{ym_compact}*.tif")
-        if kbdi_path:
-            dynamic[t_idx, 10] = _read_and_align(str(kbdi_path), bcm_profile)
-        else:
-            missing_counts["kbdi"] += 1
-
-        # --- Targets: aet, cwd from BCM local outputs ---
-        aet_data = None
-        cwd_data = None
-        for var in ["aet", "cwd"]:
-            fpath = _find_file(Path(bcm_dir) / var, f"{var}-{ym_compact}.tif")
-            if fpath:
-                data = read_raster_as_masked(str(fpath))
-                data[np.isnan(data)] = 0.0
-                store[f"targets/{var}"][t_idx] = data
-                if var == "aet":
-                    aet_data = data
-                else:
-                    cwd_data = data
-            else:
-                missing_counts[var] += 1
-
-        # --- Target: PCK from local BCM first, then ScienceBase gap-fill ---
-        pck_fpath = _find_file(Path(bcm_dir) / "pck", f"pck-{ym_compact}.tif")
-        if pck_fpath is None:
-            # Try ScienceBase gap-fill directory
-            pck_fpath = _find_file(sb_dir / "pck", f"pck-{ym_compact}.tif")
-        if pck_fpath:
-            pck_data = read_raster_as_masked(str(pck_fpath))
-            pck_data[np.isnan(pck_data)] = 0.0
-            store["targets/pck"][t_idx] = pck_data
-        else:
-            missing_counts["pck"] += 1
-
-        # --- Target: PET derived as AET + CWD ---
-        if aet_data is not None and cwd_data is not None:
-            pet_data = aet_data + cwd_data
-            store["targets/pet"][t_idx] = pet_data
+            done += 1
+            if done % 60 == 0:
+                logger.info(f"Wrote {done}/{T} timesteps to zarr")
 
     # --- Log missing data summary ---
     for var, count in missing_counts.items():

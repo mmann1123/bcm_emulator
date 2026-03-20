@@ -81,16 +81,17 @@ class BCMPixelDataset(Dataset):
 
         logger.info(f"Preloading data for {len(pixel_indices)} pixels into RAM...")
 
-        # Dynamic inputs: read each timestep once, extract all pixels -> (N_pixels, n_dyn_total, T_load)
+        # Dynamic inputs: batch-read zarr chunks, extract pixels -> (N_pixels, n_dyn_total, T_load)
         dynamic_zarr = store["inputs/dynamic"]  # (T, n_dyn_total, H, W)
         T_load = t_end - t_start
+        chunk_t = dynamic_zarr.chunks[0]  # zarr temporal chunk size (e.g. 12)
         self._dynamic = np.empty((self.n_pixels, self.n_dyn_total, T_load), dtype=np.float32)
-        for t in range(T_load):
-            t_abs = t_start + t
-            data_t = np.array(dynamic_zarr[t_abs])  # (n_dyn_total, H, W)
-            self._dynamic[:, :, t] = data_t[:, rows, cols].T.astype(np.float32)
-            if (t + 1) % 100 == 0:
-                logger.info(f"  Dynamic: {t+1}/{T_load} timesteps loaded")
+        for c_start in range(0, T_load, chunk_t):
+            c_end = min(c_start + chunk_t, T_load)
+            chunk = np.array(dynamic_zarr[t_start + c_start : t_start + c_end])  # (chunk, C, H, W)
+            self._dynamic[:, :, c_start:c_end] = chunk[:, :, rows, cols].transpose(2, 1, 0).astype(np.float32)
+            if c_end % 100 < chunk_t:
+                logger.info(f"  Dynamic: {c_end}/{T_load} timesteps loaded")
 
         # Static inputs: continuous channels (0 to n_static_cont-1) + FVEG class ID (last)
         static_full = np.array(store["inputs/static"])  # (C, H, W)
@@ -101,18 +102,32 @@ class BCMPixelDataset(Dataset):
         else:
             self._fveg_ids = np.zeros(self.n_pixels, dtype=np.int64)
 
-        # Targets: (N_pixels, T_load, 4) for pet, pck, aet, cwd
+        # Targets: batch-read zarr chunks -> (N_pixels, 4, T_load)
         target_names = ["pet", "pck", "aet", "cwd"]
         self._targets = np.empty((self.n_pixels, 4, T_load), dtype=np.float32)
         for vi, var in enumerate(target_names):
             tgt_zarr = store[f"targets/{var}"]  # (T, H, W)
-            for t in range(T_load):
-                t_abs = t_start + t
-                data_t = np.array(tgt_zarr[t_abs, :, :])  # (H, W)
-                self._targets[:, vi, t] = data_t[rows, cols].astype(np.float32)
+            tgt_chunk_t = tgt_zarr.chunks[0]
+            for c_start in range(0, T_load, tgt_chunk_t):
+                c_end = min(c_start + tgt_chunk_t, T_load)
+                chunk = np.array(tgt_zarr[t_start + c_start : t_start + c_end])  # (chunk, H, W)
+                self._targets[:, vi, c_start:c_end] = chunk[:, rows, cols].T.astype(np.float32)
 
         logger.info(f"Preload complete. Dynamic: {self._dynamic.nbytes/1e6:.0f} MB, "
                      f"Targets: {self._targets.nbytes/1e6:.0f} MB")
+
+        # Pre-cache normalization arrays to avoid recomputing in __getitem__
+        if normalize:
+            self._dyn_mean_no_kbdi = np.concatenate([
+                self.dyn_mean[:self.kbdi_channel],
+                self.dyn_mean[self.kbdi_channel + 1:],
+            ]).astype(np.float32)
+            self._dyn_std_no_kbdi = np.concatenate([
+                self.dyn_std[:self.kbdi_channel],
+                self.dyn_std[self.kbdi_channel + 1:],
+            ]).astype(np.float32)
+            self._kbdi_mean = float(self.dyn_mean[self.kbdi_channel])
+            self._kbdi_std = float(self.dyn_std[self.kbdi_channel])
 
     def __len__(self) -> int:
         return self.n_pixels * self.n_windows
@@ -166,25 +181,12 @@ class BCMPixelDataset(Dataset):
 
         # Normalize
         if self.normalize:
-            # Dynamic channels (excluding KBDI — use stats for channels 0..kbdi-1, kbdi+1..n_dyn_total-1)
             n_d = self.n_dyn
-            dyn_mean_no_kbdi = np.concatenate([
-                self.dyn_mean[:self.kbdi_channel],
-                self.dyn_mean[self.kbdi_channel + 1:],
-            ])
-            dyn_std_no_kbdi = np.concatenate([
-                self.dyn_std[:self.kbdi_channel],
-                self.dyn_std[self.kbdi_channel + 1:],
-            ])
-            inputs[:n_d] = (inputs[:n_d] - dyn_mean_no_kbdi[:, np.newaxis]) / dyn_std_no_kbdi[:, np.newaxis]
-            # Static channels (vectorized)
+            inputs[:n_d] = (inputs[:n_d] - self._dyn_mean_no_kbdi[:, np.newaxis]) / self._dyn_std_no_kbdi[:, np.newaxis]
             inputs[n_d:] = (inputs[n_d:] - self.stat_mean[:, np.newaxis]) / self.stat_std[:, np.newaxis]
-            # KBDI normalized separately
-            kbdi = (kbdi - self.dyn_mean[self.kbdi_channel]) / self.dyn_std[self.kbdi_channel]
-            # Targets
+            kbdi = (kbdi - self._kbdi_mean) / self._kbdi_std
             for i, var in enumerate(["pet", "pck", "aet", "cwd"]):
                 targets[var] = (targets[var] - self.tgt_mean[i]) / self.tgt_std[i]
-            # GT prev (use pck and aet stats)
             gt_pck_prev = (gt_pck_prev - self.tgt_mean[1]) / self.tgt_std[1]
             gt_aet_prev = (gt_aet_prev - self.tgt_mean[2]) / self.tgt_std[2]
 
