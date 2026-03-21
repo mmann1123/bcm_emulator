@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--config", default="config.yaml", help="Path to config YAML")
     parser.add_argument("--run-id", default=None, help="Snapshot ID (e.g. 'v1-baseline'). Creates snapshot after training.")
     parser.add_argument("--notes", default="", help="Notes for the snapshot manifest")
+    parser.add_argument("--resume", default=None, help="Path to checkpoint to resume from (e.g. checkpoints/best_model.pt)")
     args = parser.parse_args()
 
     from src.utils.config import load_config
@@ -164,6 +165,9 @@ def main():
         cfg=cfg,
         device=device,
     )
+
+    if args.resume:
+        trainer.resume_from(args.resume)
 
     logger.info("Starting training...")
     history = trainer.train()

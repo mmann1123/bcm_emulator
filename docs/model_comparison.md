@@ -24,6 +24,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-kbdi | 2026-03-19 | MSE | v8c base + KBDI dynamic channel (replaces drought_code); 11 dynamic inputs, MSE loss |
 | v10-kbdi-aet-only | 2026-03-20 | MSE | KBDI routed only to AET head (bypasses backbone); 10 dyn through backbone, KBDI injected at AET stage |
 | v11-kv-aet | 2026-03-20 | MSE | v10 + BCM Table 6 Kv crop coefficient as time-varying channel at AET head (MLP head, 260→64→1) |
+| v11-stress-frac | 2026-03-21 | MSE | Stress-fraction AET head: sigmoid(stress) × Kv × PET + correction; same Kv plumbing as v11-kv-aet |
 
 ## Global Performance Metrics
 
@@ -47,6 +48,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-kbdi | 0.925 | 0.929 | 0.824 | 0.896 |
 | v10-kbdi-aet-only | 0.927 | 0.929 | 0.840 | 0.897 |
 | v11-kv-aet | 0.928 | 0.930 | 0.835 | 0.900 |
+| v11-stress-frac | 0.929 | 0.944 | 0.830 | 0.903 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -68,6 +70,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-kbdi | 0.952 | 0.855 | 0.743 | 0.907 |
 | v10-kbdi-aet-only | 0.942 | 0.826 | 0.769 | 0.925 |
 | v11-kv-aet | 0.942 | 0.871 | 0.745 | 0.915 |
+| v11-stress-frac | 0.947 | **0.952** | 0.739 | 0.921 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -89,6 +92,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-kbdi | 16.5 | 14.0 | 12.7 | 18.8 |
 | v10-kbdi-aet-only | 16.3 | 14.0 | 12.1 | 18.7 |
 | v11-kv-aet | 16.1 | 13.8 | 12.3 | 18.4 |
+| v11-stress-frac | 16.0 | 12.4 | 12.4 | 18.1 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -110,6 +114,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v9-kbdi | -1.8 | 12.4 | 6.6 | -3.8 |
 | v10-kbdi-aet-only | -1.0 | 13.5 | 6.3 | -2.6 |
 | v11-kv-aet | -0.9 | 8.7 | 10.0 | -4.1 |
+| v11-stress-frac | -0.6 | **3.3** | 6.3 | -2.1 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -130,6 +135,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-kbdi | 31.9 | -26.4 | 0.740 |
 | v10-kbdi-aet-only | 29.6 | -23.3 | 0.758 |
 | v11-kv-aet | 29.0 | -23.4 | 0.764 |
+| v11-stress-frac | 31.7 | -26.4 | 0.759 |
 
 ### AET Extremes (P99)
 
@@ -146,6 +152,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-kbdi | 41.3 | -38.4 | 0.523 |
 | v10-kbdi-aet-only | 37.5 | -33.6 | 0.587 |
 | v11-kv-aet | 36.4 | -33.3 | 0.592 |
+| v11-stress-frac | 40.0 | -36.9 | 0.585 |
 
 ### CWD Extremes (P95)
 
@@ -162,6 +169,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-kbdi | 10.5 | -4.6 | 0.798 |
 | v10-kbdi-aet-only | 9.6 | **-0.6** | 0.797 |
 | v11-kv-aet | 9.7 | -2.6 | 0.802 |
+| v11-stress-frac | 11.0 | -1.8 | 0.782 |
 
 ### CWD Extremes (P99)
 
@@ -178,6 +186,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v9-kbdi | 8.2 | -4.2 | 0.670 |
 | v10-kbdi-aet-only | 5.7 | -0.6 | 0.684 |
 | v11-kv-aet | 6.4 | -2.0 | **0.713** |
+| v11-stress-frac | 7.4 | -1.8 | 0.676 |
 
 ## Analysis for Wildfire Modeling
 
@@ -323,6 +332,31 @@ v11-kv-aet adds the BCM Table 6 Kv crop coefficient as a time-varying channel in
 
 **Key insight:** Kv provides the right information but the MLP architecture cannot exploit it. The multiplicative relationship `AET = Kv × PET × f(soil_water)` requires the network to approximate multiplication from concatenated inputs, which ReLU networks do poorly — they use piecewise-linear segments that break down at extremes. The product `Kv × PET × stress` is largest in late summer (high PET, vegetated pixels, moderate soil moisture), exactly where underprediction is worst. This motivates the stress-fraction architecture (v11-stress-frac) that encodes the multiplicative structure explicitly: `stress × Kv × PET + correction`.
 
+### v11-stress-frac: stress-fraction AET head with multiplicative inductive bias
+
+v11-stress-frac replaces the MLP AET head with a stress-fraction architecture that encodes the BCMv8 multiplicative structure explicitly: `stress_net` learns `f(soil_water) ∈ [0, 1]` via sigmoid, then `AET = clamp(stress × Kv, max=1.0) × PET + correction`. The hypothesis was that ReLU networks approximate multiplication poorly, causing AET P95 underprediction (~-23mm) because the product `Kv × PET × stress` is largest exactly where underprediction is worst (late summer, high PET, vegetated pixels).
+
+**Results vs v11-kv-aet (same Kv plumbing, MLP head):**
+
+- **PCK: major improvement** — NSE 0.944 vs 0.930, KGE 0.952 vs 0.871 (new best-ever PCK KGE), pbias 3.3% vs 8.7% (new best-ever PCK pbias). The stress-fraction head's different gradient landscape appears to benefit the shared backbone's PCK representations.
+- **PET: marginal improvement** — NSE 0.929 vs 0.928, KGE 0.947 vs 0.942. Consistent with upstream stages being largely unaffected by head architecture.
+- **AET: slight regression** — NSE 0.830 vs 0.835, pbias 6.3% vs 10.0% (better bias, worse NSE). The stress-fraction head produces less biased global AET but with higher variance.
+- **CWD: improved globally** — NSE 0.903 vs 0.900, pbias -2.1% vs -4.1%, KGE 0.921 vs 0.915. The lower AET bias flows through to better CWD.
+- **AET extremes: worse** — P95 bias -26.4mm vs -23.4mm, P99 bias -36.9mm vs -33.3mm. The stress-fraction architecture *increased* extreme underprediction by ~3mm. The `clamp(stress × kv, max=1.0)` ceiling may be too restrictive — it forces `AET ≤ PET` in the multiplicative path, pushing all extreme AET prediction to the correction_net which has the same learning challenge as the old MLP.
+- **CWD extremes: worse** — P95 RMSE 11.0 vs 9.7, P99 RMSE 7.4 vs 6.4. The AET extreme regression cascades into CWD.
+
+**Results vs v10-kbdi-aet-only (no Kv, MLP head — best AET model):**
+
+- **AET: regressed** — NSE 0.830 vs 0.840. Adding Kv with *either* head architecture (MLP or stress-fraction) hurts AET NSE vs the no-Kv baseline.
+- **PCK: best-ever** — KGE 0.952 and pbias 3.3% are records across all runs.
+- **CWD: competitive** — NSE 0.903 vs 0.897, pbias -2.1% vs -2.6%. Better globally but worse at extremes.
+
+**Key insight:** The stress-fraction architecture hypothesis was partially wrong. While it dramatically improved PCK (best-ever KGE/pbias) and CWD global metrics, it **did not fix AET extremes** — in fact it made them worse. The likely reasons:
+
+1. **Clamp ceiling is too strict.** `clamp(stress × kv, max=1.0)` caps the multiplicative path at `1.0 × PET`. For extreme AET events, the physical reality may require AET *approaching* PET (stress ≈ 1.0, Kv ≈ 1.0), and the clamp removes gradient flow precisely at these critical points.
+2. **Correction net carries too much burden.** For Kv=0 pixels (35% of grid — bare rock, water, urban), the multiplicative path outputs exactly zero and correction_net must provide the full prediction. For extreme events, the correction must also compensate for the clamp. This splits the learning problem in a way that may be harder than the unified MLP.
+3. **The AET extreme problem may not be architectural.** Across v10, v11-kv-aet, and v11-stress-frac, AET P95 bias ranges from -23 to -26mm regardless of head architecture. The persistent ~-23mm floor suggests the backbone features themselves lack the information needed to predict extreme AET — the bottleneck is upstream of the head.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -374,7 +408,12 @@ v10 KBDI routed to AET head only .. AET NSE 0.840, CWD NSE 0.897  (first drought
  |                                       CWD extremes near-best (P95 bias -0.6mm, P99 bias -0.6mm)
  |                                       Validates routing hypothesis: drought signals help when connected to right stage
 v11 + Kv crop coeff at AET (MLP) . AET NSE 0.835, CWD NSE 0.900  (AET regressed, CWD P99 hit rate best-ever 0.713)
-                                         Kv provides right info but MLP can't learn multiplicative structure
-                                         AET pbias 10.0% — overpredicts vegetated pixels without stress constraint
-                                         AET P95 bias -23.4mm unchanged — motivates stress-fraction architecture
+ |                                       Kv provides right info but MLP can't learn multiplicative structure
+ |                                       AET pbias 10.0% — overpredicts vegetated pixels without stress constraint
+ |                                       AET P95 bias -23.4mm unchanged — motivates stress-fraction architecture
+v11sf Stress-frac AET head ........ AET NSE 0.830, CWD NSE 0.903  (PCK KGE best-ever 0.952, pbias 3.3%)
+                                         sigmoid(stress) × Kv × PET + correction — explicit multiplicative structure
+                                         AET P95 bias WORSE (-26.4mm vs -23.4mm) — clamp ceiling too restrictive
+                                         CWD global improved but extremes regressed
+                                         AET extreme bias ~-23mm is a backbone/feature ceiling, not head architecture
 ```

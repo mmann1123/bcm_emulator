@@ -114,12 +114,27 @@ class BCMTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         self.best_val_loss = float("inf")
+        self.start_epoch = 0
+
+    def resume_from(self, checkpoint_path: str):
+        """Load model, optimizer, scheduler, and scaler state from a checkpoint."""
+        ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(ckpt["model_state_dict"])
+        self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        self.scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        self.scaler.load_state_dict(ckpt["scaler_state_dict"])
+        self.best_val_loss = ckpt.get("best_val_loss", ckpt["val_loss"])
+        self.start_epoch = ckpt["epoch"] + 1  # resume from next epoch
+        logger.info(
+            f"Resumed from {checkpoint_path} at epoch {ckpt['epoch']+1}, "
+            f"val_loss={ckpt['val_loss']:.4f}, best_val_loss={self.best_val_loss:.4f}"
+        )
 
     def train(self) -> Dict:
         """Run full training loop."""
         history = {"train_loss": [], "val_loss": []}
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.start_epoch, self.epochs):
             tf_ratio = get_tf_ratio(epoch, self.epochs, self.tf_warmup_fraction)
             weights = self.criterion.get_weights(epoch)
 
