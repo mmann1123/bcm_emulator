@@ -25,6 +25,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v10-kbdi-aet-only | 2026-03-20 | MSE | KBDI routed only to AET head (bypasses backbone); 10 dyn through backbone, KBDI injected at AET stage |
 | v11-kv-aet | 2026-03-20 | MSE | v10 + BCM Table 6 Kv crop coefficient as time-varying channel at AET head (MLP head, 260→64→1) |
 | v11-stress-frac | 2026-03-21 | MSE | Stress-fraction AET head: sigmoid(stress) × Kv × PET + correction; same Kv plumbing as v11-kv-aet |
+| v12-stress-frac-aet2x | 2026-03-21 | MSE | v11-stress-frac + v5-style loss weights: aet=2.0, cwd=2.0, pet_decay=0.99 |
 
 ## Global Performance Metrics
 
@@ -49,6 +50,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v10-kbdi-aet-only | 0.927 | 0.929 | 0.840 | 0.897 |
 | v11-kv-aet | 0.928 | 0.930 | 0.835 | 0.900 |
 | v11-stress-frac | 0.929 | 0.944 | 0.830 | 0.903 |
+| v12-stress-frac-aet2x | 0.862 | 0.913 | **0.856** | 0.912 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -71,6 +73,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v10-kbdi-aet-only | 0.942 | 0.826 | 0.769 | 0.925 |
 | v11-kv-aet | 0.942 | 0.871 | 0.745 | 0.915 |
 | v11-stress-frac | 0.947 | **0.952** | 0.739 | 0.921 |
+| v12-stress-frac-aet2x | 0.859 | 0.745 | **0.825** | 0.922 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -93,6 +96,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v10-kbdi-aet-only | 16.3 | 14.0 | 12.1 | 18.7 |
 | v11-kv-aet | 16.1 | 13.8 | 12.3 | 18.4 |
 | v11-stress-frac | 16.0 | 12.4 | 12.4 | 18.1 |
+| v12-stress-frac-aet2x | 22.4 | 15.4 | **11.4** | 17.3 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -115,6 +119,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v10-kbdi-aet-only | -1.0 | 13.5 | 6.3 | -2.6 |
 | v11-kv-aet | -0.9 | 8.7 | 10.0 | -4.1 |
 | v11-stress-frac | -0.6 | **3.3** | 6.3 | -2.1 |
+| v12-stress-frac-aet2x | -0.6 | 20.7 | 7.6 | -3.0 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -136,6 +141,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v10-kbdi-aet-only | 29.6 | -23.3 | 0.758 |
 | v11-kv-aet | 29.0 | -23.4 | 0.764 |
 | v11-stress-frac | 31.7 | -26.4 | 0.759 |
+| v12-stress-frac-aet2x | 25.3 | -16.6 | **0.765** |
 
 ### AET Extremes (P99)
 
@@ -153,6 +159,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v10-kbdi-aet-only | 37.5 | -33.6 | 0.587 |
 | v11-kv-aet | 36.4 | -33.3 | 0.592 |
 | v11-stress-frac | 40.0 | -36.9 | 0.585 |
+| v12-stress-frac-aet2x | 30.7 | -25.7 | 0.556 |
 
 ### CWD Extremes (P95)
 
@@ -170,6 +177,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v10-kbdi-aet-only | 9.6 | **-0.6** | 0.797 |
 | v11-kv-aet | 9.7 | -2.6 | 0.802 |
 | v11-stress-frac | 11.0 | -1.8 | 0.782 |
+| v12-stress-frac-aet2x | 9.6 | -3.0 | 0.790 |
 
 ### CWD Extremes (P99)
 
@@ -187,6 +195,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v10-kbdi-aet-only | 5.7 | -0.6 | 0.684 |
 | v11-kv-aet | 6.4 | -2.0 | **0.713** |
 | v11-stress-frac | 7.4 | -1.8 | 0.676 |
+| v12-stress-frac-aet2x | 6.4 | -2.7 | 0.690 |
 
 ## Analysis for Wildfire Modeling
 
@@ -357,6 +366,28 @@ v11-stress-frac replaces the MLP AET head with a stress-fraction architecture th
 2. **Correction net carries too much burden.** For Kv=0 pixels (35% of grid — bare rock, water, urban), the multiplicative path outputs exactly zero and correction_net must provide the full prediction. For extreme events, the correction must also compensate for the clamp. This splits the learning problem in a way that may be harder than the unified MLP.
 3. **The AET extreme problem may not be architectural.** Across v10, v11-kv-aet, and v11-stress-frac, AET P95 bias ranges from -23 to -26mm regardless of head architecture. The persistent ~-23mm floor suggests the backbone features themselves lack the information needed to predict extreme AET — the bottleneck is upstream of the head.
 
+### v12-stress-frac-aet2x: stress-fraction head + v5-style loss weights
+
+v12 combines the v11-stress-frac architecture (sigmoid stress × Kv × PET + correction) with v5's loss weighting strategy (aet=2.0, cwd=2.0, pet_decay=0.99). The hypothesis: the stress-fraction head provides the right inductive bias but uniform loss weights (v11-stress-frac) don't push the model hard enough on AET/CWD extremes. Resumed from epoch 70 checkpoint after GPU interruption; best epoch was 76 (6th epoch of resumed run).
+
+**Results vs v5-awc-windward (previous best AET/CWD model):**
+
+- **AET: new best-ever** — NSE 0.856 vs 0.851, KGE 0.825 vs 0.814, RMSE 11.4 vs 11.6. The stress-fraction head + loss weights combination exceeds v5 on all AET global metrics.
+- **AET P95 bias: new best-ever** — -16.6mm vs -17.9mm. First model to break below v5's extreme bias floor. P95 RMSE 25.3 vs 25.7 (also best).
+- **AET P99 bias: new best-ever** — -25.7mm vs -27.5mm. Consistent improvement at both extreme thresholds.
+- **PET: v5-class** — NSE 0.862 vs 0.862 (identical). The pet_decay=0.99 produces the same PET trade-off as v5.
+- **CWD: near-v5** — NSE 0.912 vs 0.915, KGE 0.922 vs 0.926. Very close.
+- **PCK: degraded** — pbias 20.7% vs 6.5%, NSE 0.913 vs 0.944. The 2x AET/CWD weighting starves PCK of gradient attention. This is the same trade-off v5 made but amplified by the stress-fraction head.
+
+**Results vs v11-stress-frac (same architecture, uniform weights):**
+
+- **AET: dramatic improvement** — NSE 0.856 vs 0.830 (+0.026), P95 bias -16.6mm vs -26.4mm (10mm improvement). The loss weights were the missing ingredient — the stress-fraction architecture *can* learn extreme AET, but only when the loss function prioritizes it.
+- **PET: expected trade-off** — NSE 0.862 vs 0.929 (-0.067). The pet_decay reduces PET weight to 0.5 by end of training.
+- **PCK: significant regression** — NSE 0.913 vs 0.944, pbias 20.7% vs 3.3%. PCK is the casualty of the reweighting.
+- **CWD: improved** — NSE 0.912 vs 0.903, RMSE 17.3 vs 18.1. The AET improvement flows through.
+
+**Key insight:** The AET extreme underprediction was never purely an architectural or feature problem — it was primarily a **loss weighting problem**. The stress-fraction architecture with uniform weights (v11-stress-frac) showed AET P95 bias of -26.4mm; with 2x AET/CWD weights it dropped to -16.6mm (new best-ever). The multiplicative inductive bias helps the model *respond* to the stronger AET gradients more effectively than v5's MLP could — v12 beats v5 on AET P95 bias (-16.6 vs -17.9mm) despite v5 using the same loss weights. The trade-off remains: PET and PCK accuracy suffer. A future run could explore intermediate weights (aet=1.5) or a PCK-specific weight boost to recover snowpack accuracy.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -412,8 +443,13 @@ v11 + Kv crop coeff at AET (MLP) . AET NSE 0.835, CWD NSE 0.900  (AET regressed,
  |                                       AET pbias 10.0% — overpredicts vegetated pixels without stress constraint
  |                                       AET P95 bias -23.4mm unchanged — motivates stress-fraction architecture
 v11sf Stress-frac AET head ........ AET NSE 0.830, CWD NSE 0.903  (PCK KGE best-ever 0.952, pbias 3.3%)
-                                         sigmoid(stress) × Kv × PET + correction — explicit multiplicative structure
-                                         AET P95 bias WORSE (-26.4mm vs -23.4mm) — clamp ceiling too restrictive
-                                         CWD global improved but extremes regressed
-                                         AET extreme bias ~-23mm is a backbone/feature ceiling, not head architecture
+ |                                       sigmoid(stress) × Kv × PET + correction — explicit multiplicative structure
+ |                                       AET P95 bias WORSE (-26.4mm vs -23.4mm) — clamp ceiling too restrictive
+ |                                       CWD global improved but extremes regressed
+v12 + v5-style loss weights ....... AET NSE 0.856, CWD NSE 0.912  ★ NEW BEST AET (NSE + P95 bias)
+                                         aet=2.0, cwd=2.0, pet_decay=0.99 — same weights as v5
+                                         AET P95 bias -16.6mm (new best, beating v5's -17.9mm)
+                                         AET P99 bias -25.7mm (new best, beating v5's -27.5mm)
+                                         PET NSE 0.862 (v5-class trade-off), PCK pbias 20.7% (casualty)
+                                         Loss weighting was the missing ingredient, not architecture alone
 ```

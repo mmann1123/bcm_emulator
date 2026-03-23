@@ -17,13 +17,14 @@ conda run -n deep_field python <script.py>
 conda run -n deep_field python prepare_data.py --steps sciencebase pck_gap prism_daily prism_daily_tmax srad topo_solar fveg soil fire_features zarr
 
 # Training (always tag with --run-id and --notes)
-conda run -n deep_field python train.py --run-id v3-vpd-awc --notes "Added VPD dynamic input + POLARIS AWC static input"
+conda run -n deep_field python train.py --run-id v13-sws-rollstd \
+    --notes "Added 4 new dynamic channels: SWS bucket model, vpd_roll6_std, srad_roll6_std, tmax_roll3_std"
 
 # Evaluation
-conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v3-vpd-awc
+conda run -n deep_field python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v13-sws-rollstd
 
 # Compare snapshots
-conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v2-fveg-srad-fix', 'v3-vpd-awc', project_root='.')"
+conda run -n deep_field python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v12-stress-frac-aet2x','v13-sws-rollstd', project_root='.')"
 ```
 
 No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and spatial NSE maps serve as the validation mechanism.
@@ -37,10 +38,10 @@ No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and
 ```
 prepare_data.py (downloads + zarr build)
     → data/bcm_dataset.zarr
-        /inputs/dynamic   (T, 11, H, W)  - monthly climate
+        /inputs/dynamic   (T, 15, H, W)  - monthly climate + derived features
         /inputs/static    (14, H, W)     - terrain + soil + vegetation
         /targets/{pet,pck,aet,cwd}  (T, H, W)
-        /norm/*           - per-channel z-score stats
+        /norm/*           - per-channel z-score stats (zarr stores RAW values; norm applied on-the-fly by dataset)
 
 train.py → BCMPixelDataset (pixel time-series from zarr)
     → BCMTrainer (AMP, cosine schedule, teacher forcing curriculum)
@@ -54,9 +55,9 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 23, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 31, T) → Backbone
-  23 = 10 dynamic (excl. KBDI) + 13 continuous static
-  31 = 23 + 8 FVEG embedding
+Input: (B, 27, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 35, T) → Backbone
+  27 = 14 dynamic (excl. KBDI) + 13 continuous static
+  35 = 27 + 8 FVEG embedding
 
 Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
           Receptive field: 125 months. Output: (B, 256, T)
@@ -78,7 +79,10 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 ### Input channels
 
-**Dynamic (10 backbone + 1 KBDI routed to AET + 1 Kv routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd | kbdi (AET-only) | kv (AET-only, from BCM Table 6)
+**Dynamic (14 backbone + 1 KBDI routed to AET + 1 Kv routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std | kbdi (AET-only, idx 10) | kv (AET-only, from BCM Table 6)
+
+- **sws** (v13+): Soil Water Storage from bucket model `SWS[t] = clamp(SWS[t-1] + PPT[t] - PET[t], 0, AWC)`, AWC from (FC-WP)×soil_depth. Added via `scripts/add_sws_channel.py`.
+- **vpd_roll6_std, srad_roll6_std, tmax_roll3_std** (v13+): Rolling standard deviations capturing climate variability. Identified by `scripts/panel_extremes_analysis.py` as disproportionately important for AET/CWD extremes (up to 73× more important in tail vs overall). Added via `scripts/add_rolling_std_channels.py`.
 
 **Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
 - Channels 0-12 are continuous (z-score normalized)
@@ -102,7 +106,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 10 dyn + 13 static + 8 fveg embed = 31; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 14 dyn + 13 static + 8 fveg embed = 35; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Loss Function
 
@@ -119,13 +123,16 @@ Total = Σ w_var * Huber(var) + extreme_weight * MSE_extreme(extreme_vars)
 
 ## Current Status
 
-Best overall model: **v6-huber** (PET NSE 0.927, PCK NSE 0.950, CWD NSE 0.907). Known weakness: AET/CWD extreme underprediction. **v7-extreme-aware** (not yet trained) adds the extreme-aware MSE penalty to address this. See `docs/model_comparison.md` for full run-by-run analysis.
+Best AET extremes: **v12-stress-frac-aet2x** (AET NSE 0.856, AET P95 bias -16.6mm). Best overall: **v6-huber** (PET NSE 0.927, PCK NSE 0.950, CWD NSE 0.907). Known weakness: AET/CWD extreme underprediction. **v13-sws-rollstd** (training) adds SWS + rolling variability features to address this. See `docs/model_comparison.md` for full run-by-run analysis.
+
+**Important:** The zarr stores **raw (unnormalized) values** for all channels. Normalization stats in `/norm/*` are applied on-the-fly by `BCMPixelDataset`. When adding derived channels via scripts (not `prepare_data.py --steps zarr`), write raw values and append norm stats — do NOT z-normalize before writing.
 
 ## Development Practices
 
 - All production data processing must be in project scripts (`src/data/`, `prepare_data.py`), not ad-hoc shell commands.
 - Always tag training runs with `--run-id` and `--notes` for reproducibility.
-- When adding new input channels: update zarr shape in `preprocessing.py`, add normalization in `_compute_norm_stats`, verify `dataset.py` reads counts dynamically, update `config.yaml` `in_channels`.
+- When adding new input channels: update zarr shape in `preprocessing.py`, add normalization in `_compute_norm_stats`, verify `dataset.py` reads counts dynamically, update `config.yaml` `in_channels`. Alternatively, use standalone scripts (e.g. `scripts/add_sws_channel.py`, `scripts/add_rolling_std_channels.py`) to append channels to an existing zarr without full rebuild.
+- The zarr stores raw values. New channels added via scripts must also be raw, with norm stats appended to `norm/dynamic_mean` and `norm/dynamic_std`.
 
 ## Model Build/Run/Evaluate Workflow
 

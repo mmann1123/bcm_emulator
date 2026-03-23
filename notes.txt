@@ -101,10 +101,18 @@ python train.py --run-id v11-stress-frac --notes "Stress-fraction AET head: sigm
 python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v11-stress-frac   
 python -c "from src.utils.snapshot import compare_snapshots;compare_snapshots('v5-awc-windward','v11-stress-frac', project_root='.')"
 
+python train.py --run-id v12-stress-frac-aet2x  --notes "v11-stress-frac architecture + v5-style loss weights: aet=2.0, cwd=2.0, pet_decay=0.99" --resume checkpoints/best_model.pt
 
-python train.py --run-id v12-stress-frac-aet2x  --notes "v11-stress-frac architecture + v5-style loss weights: aet=2.0, cwd=2.0, pet_decay=0.99"                  
-      
 
-python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v12-stress-frac-aet2x      
-                                                                                                                      
-python -c "from src.utils.snapshot import compare_snapshots;compare_snapshots('v5-awc-windward','v12-stress-frac-aet2x', project_root='.')"
+python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v12-stress-frac-aet2x
+
+python -c "from src.utils.snapshot import compare_snapshots; compare_snapshots('v5-awc-windward','v12-stress-frac-aet2x', project_root='.')"
+
+================
+
+python train.py --run-id v13-sws-rollstd --notes "Added 4 new dynamic channels: SWS bucket model (PPT-PET water balance), vpd_roll6_std, srad_roll6_std, tmax_roll3_std; targeting AET/CWD extreme underprediction"                                    
+                                                                                                                
+python evaluate.py --checkpoint checkpoints/best_model.pt --run-id v13-sws-rollstd
+                                                                                                                
+python -c "from src.utils.snapshot import compare_snapshots; 
+  compare_snapshots('v12-stress-frac-aet2x','v13-sws-rollstd', project_root='.')"   
