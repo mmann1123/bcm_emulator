@@ -81,7 +81,7 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 **Dynamic (14 backbone + 1 KBDI routed to AET + 1 Kv routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std | kbdi (AET-only, idx 10) | kv (AET-only, from BCM Table 6)
 
-- **sws** (v13+): Soil Water Storage from bucket model `SWS[t] = clamp(SWS[t-1] + PPT[t] - PET[t], 0, AWC)`, AWC from (FC-WP)×soil_depth. Added via `scripts/add_sws_channel.py`.
+- **sws** (v14+): Soil Water Storage from stress-modulated bucket model: `stress = min(SWS[t-1]/AWC, 1); AET_approx = PET*stress; SWS[t] = clamp(SWS[t-1] + PPT - AET_approx, 0, AWC)`. Linear stress prevents over-drainage in dry conditions (v13 used PPT-PET which gave 68% zeros). AWC from (FC-WP)×soil_depth. Added/updated via `scripts/add_sws_channel.py --overwrite`.
 - **vpd_roll6_std, srad_roll6_std, tmax_roll3_std** (v13+): Rolling standard deviations capturing climate variability. Identified by `scripts/panel_extremes_analysis.py` as disproportionately important for AET/CWD extremes (up to 73× more important in tail vs overall). Added via `scripts/add_rolling_std_channels.py`.
 
 **Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id

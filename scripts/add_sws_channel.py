@@ -1,6 +1,13 @@
-"""Precompute monthly soil water storage (SWS) and add to zarr store.
+"""Precompute monthly soil water storage (SWS) and add/overwrite in zarr store.
 
-SWS[t] = clamp(SWS[t-1] + PPT[t] - PET_bcm[t], 0, AWC)
+Stress-modulated bucket model (v14+):
+    stress[t] = min(SWS[t-1] / AWC, 1.0)      # linear soil moisture stress
+    AET_approx[t] = PET[t] * stress[t]          # actual ET decreases as soil dries
+    SWS[t] = clamp(SWS[t-1] + PPT[t] - AET_approx[t], 0, AWC)
+
+This replaces the original PPT-PET formulation which drained too aggressively
+(PET >> AET in dry conditions), producing a degenerate distribution with 68%
+of pixel-months at zero.
 
 Uses:
   - AWC derived from zarr static channels: (FC - WP) * soil_depth * 1000 [mm]
@@ -16,9 +23,14 @@ We read raw values directly and normalize only the SWS output channel.
 Spin-up: 3 cycles through first 36 months to remove initialization bias.
 
 Usage:
+    # First run (append new channel):
     conda run -n deep_field python scripts/add_sws_channel.py
+
+    # Overwrite existing channel 11 with fixed SWS:
+    conda run -n deep_field python scripts/add_sws_channel.py --overwrite
 """
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -72,7 +84,12 @@ def compute_awc_from_zarr(store, valid_mask: np.ndarray) -> np.ndarray:
 
 
 def compute_sws(ppt_raw, pet_raw, awc_mm, valid_mask, spinup_years=3):
-    """Run simple bucket model: SWS[t] = clamp(SWS[t-1] + PPT[t] - PET[t], 0, AWC).
+    """Stress-modulated bucket model matching BCMv8 linear stress formulation.
+
+    At each timestep:
+        stress = min(SWS[t-1] / AWC, 1.0)       # 0 (bone dry) to 1 (at capacity)
+        AET_approx = PET[t] * stress              # drainage decreases as soil dries
+        SWS[t] = clamp(SWS[t-1] + PPT[t] - AET_approx, 0, AWC)
 
     Parameters
     ----------
@@ -89,17 +106,25 @@ def compute_sws(ppt_raw, pet_raw, awc_mm, valid_mask, spinup_years=3):
     sws_out = np.zeros((T, H, W), dtype=np.float32)
     sws_t = awc_mm * 0.5  # initialize at 50% capacity
 
+    # Precompute safe AWC for division (avoid /0 where AWC=0)
+    awc_safe = np.where(awc_mm > 0, awc_mm, 1.0)
+
     spinup_len = min(spinup_years * 12, T)
-    logger.info(f"Running {spinup_years}-year spin-up ({spinup_len} months × 3 passes)...")
+    logger.info(f"Running {spinup_years}-year spin-up ({spinup_len} months × 3 passes) "
+                f"[stress-modulated drainage]...")
     for pass_num in range(3):
         for t in range(spinup_len):
-            sws_t = np.clip(sws_t + ppt_raw[t] - pet_raw[t], 0.0, awc_mm)
+            stress = np.minimum(sws_t / awc_safe, 1.0)
+            aet_approx = pet_raw[t] * stress
+            sws_t = np.clip(sws_t + ppt_raw[t] - aet_approx, 0.0, awc_mm)
         logger.info(f"  Spin-up pass {pass_num+1}/3 complete — "
                     f"SWS mean (valid): {sws_t[valid_mask].mean():.1f}mm")
 
     logger.info("Running full time series...")
     for t in range(T):
-        sws_t = np.clip(sws_t + ppt_raw[t] - pet_raw[t], 0.0, awc_mm)
+        stress = np.minimum(sws_t / awc_safe, 1.0)
+        aet_approx = pet_raw[t] * stress
+        sws_t = np.clip(sws_t + ppt_raw[t] - aet_approx, 0.0, awc_mm)
         sws_out[t] = sws_t
         if t % 120 == 0:
             logger.info(f"  t={t}/{T}  SWS mean: {sws_t[valid_mask].mean():.1f}mm")
@@ -111,23 +136,38 @@ def compute_sws(ppt_raw, pet_raw, awc_mm, valid_mask, spinup_years=3):
 def main():
     from src.utils.config import load_config
 
+    parser = argparse.ArgumentParser(description="Compute SWS and add/overwrite in zarr")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Overwrite existing SWS channel 11 in-place (no shape change)")
+    args = parser.parse_args()
+
     cfg = load_config(str(PROJECT_ROOT / "config.yaml"))
-    store = zarr.open(cfg.paths.zarr_store, mode="r+")
+    store = zarr.open_group(cfg.paths.zarr_store, mode="r+")
 
     T, C_dyn, H, W = store["inputs/dynamic"].shape
     logger.info(f"Zarr dynamic shape: T={T}, C={C_dyn}, H={H}, W={W}")
 
-    # Check SWS not already added
     dyn_names = list(np.array(store["norm/dynamic_names"]))
     logger.info(f"Existing dynamic channels: {dyn_names}")
-    if "sws" in dyn_names:
-        logger.error("SWS channel already exists in zarr. Aborting.")
-        sys.exit(1)
-    if C_dyn != 11:
-        logger.warning(
-            f"Dynamic array has {C_dyn} channels (expected 11). "
-            f"Proceeding but verify channel ordering."
-        )
+
+    SWS_IDX = 11  # known channel index for SWS
+
+    if args.overwrite:
+        if "sws" not in dyn_names or dyn_names[SWS_IDX] != "sws":
+            logger.error(f"--overwrite expects 'sws' at channel {SWS_IDX}, "
+                         f"but found: {dyn_names}")
+            sys.exit(1)
+        logger.info(f"OVERWRITE mode: will replace channel {SWS_IDX} (sws) in-place")
+    else:
+        if "sws" in dyn_names:
+            logger.error("SWS channel already exists in zarr. "
+                         "Use --overwrite to replace it.")
+            sys.exit(1)
+        if C_dyn != 11:
+            logger.warning(
+                f"Dynamic array has {C_dyn} channels (expected 11). "
+                f"Proceeding but verify channel ordering."
+            )
 
     # --- Valid mask ---
     valid_mask = np.array(store["meta/valid_mask"])  # (H, W) bool
@@ -156,9 +196,21 @@ def main():
         logger.warning("PET max > 500 mm/month — seems unreasonable. "
                        "Check if zarr stores z-normalized values.")
 
-    # --- Compute SWS ---
+    # --- Compute SWS (stress-modulated) ---
     sws = compute_sws(ppt_raw, pet_raw, awc_mm, valid_mask, SPINUP_YEARS)
     del ppt_raw, pet_raw
+
+    # --- Distribution diagnostics ---
+    valid_vals = sws[:, valid_mask]
+    pct_zero = float((valid_vals == 0).sum()) / valid_vals.size * 100
+    pct_awc = float(
+        np.isclose(valid_vals,
+                   np.broadcast_to(awc_mm[valid_mask], valid_vals.shape),
+                   atol=0.1).sum()
+    ) / valid_vals.size * 100
+    pct_mid = 100.0 - pct_zero - pct_awc
+    logger.info(f"SWS distribution: {pct_zero:.1f}% at zero, "
+                f"{pct_awc:.1f}% at AWC, {pct_mid:.1f}% in middle range")
 
     # --- Seasonal sanity check ---
     logger.info(f"SWS range (valid): {sws[:, valid_mask].min():.1f} – "
@@ -179,71 +231,91 @@ def main():
         else:
             logger.info("Seasonal pattern correct (April > October).")
 
-    # --- Compute norm stats for SWS (zarr stores raw; norm stats used by dataset) ---
-    valid_vals = sws[:, valid_mask]
+    # --- Compute norm stats for SWS ---
     sws_mean = float(valid_vals.mean())
     sws_std = float(valid_vals.std())
     logger.info(f"SWS normalization stats: mean={sws_mean:.2f}mm  std={sws_std:.2f}mm")
 
-    # --- Write SWS as raw values into zarr (matching convention of other channels) ---
-    # The zarr stores raw values; BCMPixelDataset applies z-score normalization on-the-fly
-    new_C = C_dyn + 1
-    old_chunks = store["inputs/dynamic"].chunks
-    new_chunks = (old_chunks[0], new_C, old_chunks[2], old_chunks[3])
-    logger.info(f"Appending SWS as channel {C_dyn} (new shape: T={T}, C={new_C}, H={H}, W={W})")
-    logger.info(f"Chunks: {old_chunks} → {new_chunks}")
+    if args.overwrite:
+        # --- Overwrite channel 11 in-place ---
+        logger.info(f"Overwriting channel {SWS_IDX} in inputs/dynamic...")
+        store["inputs/dynamic"][:, SWS_IDX, :, :] = sws
+        del sws
+        logger.info("Channel overwritten.")
 
-    # Load existing dynamic data before overwriting
-    logger.info("Loading existing dynamic array into memory...")
-    old_dyn = np.array(store["inputs/dynamic"])  # (T, C_dyn, H, W)
+        # Update norm stats for channel 11 only
+        dyn_means = np.array(store["norm/dynamic_mean"])
+        dyn_stds = np.array(store["norm/dynamic_std"])
+        old_mean, old_std = dyn_means[SWS_IDX], dyn_stds[SWS_IDX]
+        dyn_means[SWS_IDX] = sws_mean
+        dyn_stds[SWS_IDX] = sws_std
+        store.create_array("norm/dynamic_mean", data=dyn_means, overwrite=True)
+        store.create_array("norm/dynamic_std", data=dyn_stds, overwrite=True)
+        logger.info(f"Norm stats updated: mean {old_mean:.2f} → {sws_mean:.2f}, "
+                    f"std {old_std:.2f} → {sws_std:.2f}")
+    else:
+        # --- Append SWS as new channel ---
+        new_C = C_dyn + 1
+        old_chunks = store["inputs/dynamic"].chunks
+        new_chunks = (old_chunks[0], new_C, old_chunks[2], old_chunks[3])
+        logger.info(f"Appending SWS as channel {C_dyn} "
+                    f"(new shape: T={T}, C={new_C}, H={H}, W={W})")
+        logger.info(f"Chunks: {old_chunks} → {new_chunks}")
 
-    # Delete old array and create new one with expanded channel dimension
-    del store["inputs/dynamic"]
-    new_dyn = store.create_array(
-        "inputs/dynamic",
-        shape=(T, new_C, H, W),
-        chunks=new_chunks,
-        dtype=np.float32,
-    )
-    new_dyn[:, :C_dyn, :, :] = old_dyn
-    new_dyn[:, C_dyn, :, :] = sws  # raw values, not normalized
-    del old_dyn, sws
-    logger.info("Dynamic array written.")
+        logger.info("Loading existing dynamic array into memory...")
+        old_dyn = np.array(store["inputs/dynamic"])
 
-    # --- Update normalization stats ---
-    dyn_means = np.array(store["norm/dynamic_mean"])
-    dyn_stds = np.array(store["norm/dynamic_std"])
-    new_means = np.append(dyn_means, sws_mean).astype(np.float32)
-    new_stds = np.append(dyn_stds, sws_std).astype(np.float32)
-    store.create_array("norm/dynamic_mean", data=new_means, overwrite=True)
-    store.create_array("norm/dynamic_std", data=new_stds, overwrite=True)
+        del store["inputs/dynamic"]
+        new_dyn = store.create_array(
+            "inputs/dynamic",
+            shape=(T, new_C, H, W),
+            chunks=new_chunks,
+            dtype=np.float32,
+        )
+        new_dyn[:, :C_dyn, :, :] = old_dyn
+        new_dyn[:, C_dyn, :, :] = sws
+        del old_dyn, sws
+        logger.info("Dynamic array written.")
 
-    # Update channel names
-    old_names = np.array(store["norm/dynamic_names"])
-    new_names = np.append(old_names, "sws")
-    store.create_array("norm/dynamic_names", data=new_names, overwrite=True)
-    logger.info("Normalization stats and channel names updated.")
+        dyn_means = np.array(store["norm/dynamic_mean"])
+        dyn_stds = np.array(store["norm/dynamic_std"])
+        new_means = np.append(dyn_means, sws_mean).astype(np.float32)
+        new_stds = np.append(dyn_stds, sws_std).astype(np.float32)
+        store.create_array("norm/dynamic_mean", data=new_means, overwrite=True)
+        store.create_array("norm/dynamic_std", data=new_stds, overwrite=True)
+
+        old_names = np.array(store["norm/dynamic_names"])
+        new_names = np.append(old_names, "sws")
+        store.create_array("norm/dynamic_names", data=new_names, overwrite=True)
+        logger.info("Normalization stats and channel names updated.")
 
     # --- Verify ---
     logger.info("Verifying...")
-    v_store = zarr.open(cfg.paths.zarr_store, mode="r")
-    assert v_store["inputs/dynamic"].shape == (T, new_C, H, W), "Shape mismatch!"
+    v_store = zarr.open_group(cfg.paths.zarr_store, mode="r")
+    expected_C = C_dyn if args.overwrite else C_dyn + 1
+    assert v_store["inputs/dynamic"].shape == (T, expected_C, H, W), "Shape mismatch!"
     v_names = list(np.array(v_store["norm/dynamic_names"]))
-    assert v_names[-1] == "sws", f"Last channel name is {v_names[-1]}, expected 'sws'"
-    assert len(np.array(v_store["norm/dynamic_mean"])) == new_C, "Norm means length mismatch!"
+    assert v_names[SWS_IDX] == "sws", f"Channel {SWS_IDX} is {v_names[SWS_IDX]}, expected 'sws'"
+    assert len(np.array(v_store["norm/dynamic_mean"])) == expected_C, "Norm means length mismatch!"
     logger.info(f"Verification passed. Channel names: {v_names}")
 
     # --- Summary ---
     logger.info("=" * 60)
-    logger.info("SWS channel added successfully.")
-    logger.info(f"Dynamic channels: {C_dyn} → {new_C}")
-    logger.info(f"Channel names: {list(new_names)}")
-    logger.info("")
-    logger.info("NEXT STEPS:")
-    logger.info(f"  1. Update config.yaml: model.backbone.in_channels: "
-                f"{cfg.model.backbone.in_channels} → {cfg.model.backbone.in_channels + 1}")
-    logger.info("  2. Train: conda run -n deep_field python train.py "
-                "--run-id v13-sws --notes 'Added SWS bucket model channel'")
+    if args.overwrite:
+        logger.info("SWS channel OVERWRITTEN with stress-modulated drainage.")
+        logger.info(f"Channel {SWS_IDX} updated in-place. No config changes needed.")
+    else:
+        logger.info("SWS channel added successfully.")
+        logger.info(f"Dynamic channels: {C_dyn} → {expected_C}")
+        logger.info(f"Channel names: {v_names}")
+        logger.info("")
+        logger.info("NEXT STEPS:")
+        logger.info(f"  1. Update config.yaml: model.backbone.in_channels: "
+                    f"{cfg.model.backbone.in_channels} → "
+                    f"{cfg.model.backbone.in_channels + 1}")
+        logger.info("  2. Train: conda run -n deep_field python train.py "
+                    "--run-id v14-sws-stress --notes 'Fixed SWS: "
+                    "stress-modulated drainage'")
     logger.info("=" * 60)
 
 
