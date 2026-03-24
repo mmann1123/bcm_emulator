@@ -84,6 +84,115 @@ def compute_windward_index(
     return windward
 
 
+def compute_sws(
+    ppt_raw: np.ndarray,
+    pet_raw: np.ndarray,
+    awc_mm: np.ndarray,
+    valid_mask: np.ndarray,
+    spinup_years: int = 3,
+) -> np.ndarray:
+    """Stress-modulated bucket model matching BCMv8 linear stress formulation (v14+).
+
+    At each timestep:
+        stress = min(SWS[t-1] / AWC, 1.0)       # 0 (bone dry) to 1 (at capacity)
+        AET_approx = PET[t] * stress              # drainage decreases as soil dries
+        SWS[t] = clamp(SWS[t-1] + PPT[t] - AET_approx, 0, AWC)
+
+    Parameters
+    ----------
+    ppt_raw  : (T, H, W) mm/month — raw precipitation
+    pet_raw  : (T, H, W) mm/month — raw BCMv8 PET targets
+    awc_mm   : (H, W)    mm       — available water capacity
+    valid_mask: (H, W)   bool
+    spinup_years : int — number of years for spin-up (cycled 3x)
+
+    Returns
+    -------
+    (T, H, W) SWS in mm (raw, unnormalized).
+    """
+    T, H, W = ppt_raw.shape
+    sws_out = np.zeros((T, H, W), dtype=np.float32)
+    sws_t = awc_mm * 0.5  # initialize at 50% capacity
+
+    # Precompute safe AWC for division (avoid /0 where AWC=0)
+    awc_safe = np.where(awc_mm > 0, awc_mm, 1.0)
+
+    spinup_len = min(spinup_years * 12, T)
+    logger.info(f"SWS spin-up: {spinup_years} years ({spinup_len} months × 3 passes)")
+    for pass_num in range(3):
+        for t in range(spinup_len):
+            stress = np.minimum(sws_t / awc_safe, 1.0)
+            aet_approx = pet_raw[t] * stress
+            sws_t = np.clip(sws_t + ppt_raw[t] - aet_approx, 0.0, awc_mm)
+        logger.info(f"  Spin-up pass {pass_num+1}/3 — "
+                    f"SWS mean (valid): {sws_t[valid_mask].mean():.1f}mm")
+
+    logger.info("SWS: running full time series...")
+    for t in range(T):
+        stress = np.minimum(sws_t / awc_safe, 1.0)
+        aet_approx = pet_raw[t] * stress
+        sws_t = np.clip(sws_t + ppt_raw[t] - aet_approx, 0.0, awc_mm)
+        sws_out[t] = sws_t
+        if t % 120 == 0:
+            logger.info(f"  t={t}/{T}  SWS mean: {sws_t[valid_mask].mean():.1f}mm")
+
+    sws_out[:, ~valid_mask] = 0.0
+    return sws_out
+
+
+def compute_rolling_std(
+    data: np.ndarray,
+    window: int,
+    valid_mask: np.ndarray,
+) -> np.ndarray:
+    """Compute causal rolling std along time axis for a (T, H, W) array.
+
+    Uses current + previous (window-1) months. First window-1 timesteps
+    use partial windows (min 2 values required for std).
+
+    Parameters
+    ----------
+    data : (T, H, W) raw values
+    window : rolling window size in months
+    valid_mask : (H, W) bool
+
+    Returns
+    -------
+    (T, H, W) rolling std values (0.0 for invalid pixels and single-element windows)
+    """
+    T, H, W = data.shape
+    result = np.zeros_like(data)
+
+    for col in range(W):
+        valid_col = valid_mask[:, col]
+        if not valid_col.any():
+            continue
+
+        col_data = data[:, valid_col, col]  # (T, n_valid)
+
+        # Cumulative sums for online variance: std = sqrt(E[x²] - E[x]²)
+        cumsum = np.cumsum(col_data, axis=0)
+        cumsum2 = np.cumsum(col_data ** 2, axis=0)
+
+        for t in range(T):
+            t_start = max(0, t - window + 1)
+            n = t - t_start + 1
+            if n < 2:
+                continue
+            if t_start == 0:
+                s = cumsum[t]
+                s2 = cumsum2[t]
+            else:
+                s = cumsum[t] - cumsum[t_start - 1]
+                s2 = cumsum2[t] - cumsum2[t_start - 1]
+            mean = s / n
+            var = np.maximum(0.0, s2 / n - mean ** 2)
+            result[t, valid_col, col] = np.sqrt(var)
+
+    result[:, ~valid_mask] = 0.0
+    return result
+
+
 def _process_single_timestep(
     t_idx: int,
     ym: str,
@@ -231,7 +340,7 @@ def build_zarr_store(
         - Local: elevation, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index (static)
 
     Zarr structure:
-        /inputs/dynamic    (T, 10, H, W)  - dynamic input channels
+        /inputs/dynamic    (T, 15, H, W)  - dynamic input channels (11 base + SWS + 3 rolling std)
         /inputs/static     (14, H, W)     - static input channels
         /targets/pet       (T, H, W)
         /targets/pck       (T, H, W)
@@ -255,14 +364,15 @@ def build_zarr_store(
     # Create zarr store
     store = zarr.open(zarr_path, mode="w")
 
-    # Dynamic inputs: (T, 11, H, W)
-    # Channels: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi
+    # Dynamic inputs: (T, 15, H, W)
+    # Channels 0-10: ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi
+    # Channels 11-14: sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std (computed in post-processing)
     dynamic = store.zeros(
-        name="inputs/dynamic", shape=(T, 11, H, W), chunks=(12, 11, H, W), dtype="float32"
+        name="inputs/dynamic", shape=(T, 15, H, W), chunks=(12, 15, H, W), dtype="float32"
     )
 
-    # Static inputs: (14, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, fveg_class_id
-    static = store.zeros(name="inputs/static", shape=(14, H, W), dtype="float32")
+    # Static inputs: (15, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, awc_total, fveg_class_id
+    static = store.zeros(name="inputs/static", shape=(15, H, W), dtype="float32")
 
     # Targets: (T, H, W)
     for var in ["pet", "pck", "aet", "cwd"]:
@@ -368,7 +478,19 @@ def build_zarr_store(
     windward = compute_windward_index(elev, valid_mask)
     static[12] = windward
 
-    # FVEG (CWHR vegetation class ID) -- channel 13
+    # AWC total (derived from FC, WP, soil_depth) -- channel 13
+    logger.info("Computing AWC total: (FC - WP) × soil_depth × 1000...")
+    fc_data = static[9]   # field capacity
+    wp_data = static[10]  # wilting point
+    sd_data = static[7]   # soil depth (meters)
+    awc_total = np.maximum(0.0, fc_data - wp_data) * np.maximum(0.0, sd_data) * 1000.0  # mm
+    awc_total[~valid_mask] = 0.0
+    static[13] = awc_total
+    logger.info(f"AWC total: min={awc_total[valid_mask].min():.1f}mm  "
+                f"max={awc_total[valid_mask].max():.1f}mm  "
+                f"mean={awc_total[valid_mask].mean():.1f}mm")
+
+    # FVEG (CWHR vegetation class ID) -- channel 14 (categorical, must be last)
     import json as _json
 
     fveg_dir_path = Path(fveg_dir) if fveg_dir else None
@@ -376,7 +498,7 @@ def build_zarr_store(
         logger.info("Loading FVEG partveg raster...")
         fveg_data = _read_bcm_grid_file(str(fveg_dir_path / "fveg_partveg.tif"))
         fveg_data[np.isnan(fveg_data)] = 0.0
-        static[13] = fveg_data
+        static[14] = fveg_data
 
         # Store FVEG metadata
         classmap_path = fveg_dir_path / "fveg_class_map.json"
@@ -388,7 +510,7 @@ def build_zarr_store(
             store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_info"])
             logger.info(f"FVEG: {num_fveg_classes} classes stored")
     else:
-        logger.warning("FVEG data not found; channel 13 will be zeros")
+        logger.warning("FVEG data not found; channel 14 will be zeros")
 
     # ---- Dynamic inputs and targets (parallel) ----
     sb_dir = Path(sciencebase_dir)
@@ -421,7 +543,7 @@ def build_zarr_store(
             t = result["t_idx"]
 
             # Write to zarr in main thread (no concurrent chunk writes)
-            dynamic[t] = result["dynamic"]
+            dynamic[t, :11] = result["dynamic"]
             for var in ["pet", "pck", "aet", "cwd"]:
                 if var in result["targets"]:
                     store[f"targets/{var}"][t] = result["targets"][var]
@@ -444,6 +566,49 @@ def build_zarr_store(
     for t_idx in range(1, T):
         dynamic[t_idx, 7] = np.array(store["targets/pck"][t_idx - 1])
         dynamic[t_idx, 8] = np.array(store["targets/aet"][t_idx - 1])
+
+    # --- Compute SWS (stress-modulated bucket model, v14+) ---
+    logger.info("Computing SWS (stress-modulated bucket model)...")
+    static_arr = np.array(store["inputs/static"])
+    fc = static_arr[9]   # field capacity
+    wp = static_arr[10]  # wilting point
+    sd = static_arr[7]   # soil depth (meters)
+    awc_mm = np.maximum(0.0, fc - wp) * np.maximum(0.0, sd) * 1000.0  # mm
+    awc_mm[~valid_mask] = 0.0
+    logger.info(f"AWC (FC-WP)*depth*1000: min={awc_mm[valid_mask].min():.1f}mm  "
+                f"max={awc_mm[valid_mask].max():.1f}mm  "
+                f"mean={awc_mm[valid_mask].mean():.1f}mm")
+    del static_arr
+
+    ppt_raw = np.array(store["inputs/dynamic"][:, 0, :, :])  # channel 0 = ppt
+    pet_raw = np.array(store["targets/pet"])
+    sws = compute_sws(ppt_raw, pet_raw, awc_mm, valid_mask)
+    del ppt_raw, pet_raw, awc_mm
+
+    logger.info("Writing SWS to channel 11...")
+    store["inputs/dynamic"][:, 11, :, :] = sws
+
+    # SWS distribution diagnostics
+    sws_valid = sws[:, valid_mask]
+    pct_zero = float((sws_valid == 0).sum()) / sws_valid.size * 100
+    logger.info(f"SWS: {pct_zero:.1f}% zeros, mean={sws_valid.mean():.1f}mm, "
+                f"range=[{sws_valid.min():.1f}, {sws_valid.max():.1f}]mm")
+    del sws, sws_valid
+
+    # --- Compute rolling std channels ---
+    rolling_features = [
+        ("vpd_roll6_std", 9, 6, 12),    # vpd=ch9, window=6, dest=ch12
+        ("srad_roll6_std", 5, 6, 13),   # srad=ch5, window=6, dest=ch13
+        ("tmax_roll3_std", 2, 3, 14),   # tmax=ch2, window=3, dest=ch14
+    ]
+    for feat_name, src_idx, window, dest_idx in rolling_features:
+        logger.info(f"Computing {feat_name} (source ch{src_idx}, window={window})...")
+        src_data = np.array(store["inputs/dynamic"][:, src_idx, :, :])
+        roll_std = compute_rolling_std(src_data, window, valid_mask)
+        store["inputs/dynamic"][:, dest_idx, :, :] = roll_std
+        valid_vals = roll_std[:, valid_mask]
+        logger.info(f"  {feat_name}: mean={valid_vals.mean():.4f}, std={valid_vals.std():.4f}")
+        del src_data, roll_std, valid_vals
 
     # --- Compute and store normalization stats ---
     logger.info("Computing normalization statistics...")
@@ -508,10 +673,11 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     dynamic = store["inputs/dynamic"]
     T = dynamic.shape[0]
 
-    n_channels = 11
+    n_channels = 15
     channel_names = [
         "ppt", "tmin", "tmax", "wet_days", "ppt_intensity",
         "srad", "snow_frac", "pck_prev", "aet_prev", "vpd", "kbdi",
+        "sws", "vpd_roll6_std", "srad_roll6_std", "tmax_roll3_std",
     ]
 
     n_valid = valid_mask.sum()
@@ -534,19 +700,19 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     stds = np.sqrt(running_sq_sum / count - means**2)
     stds[stds < 1e-8] = 1.0
 
-    # Static channels: normalize channels 0-12 (continuous: elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index)
-    # Channel 13 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
+    # Static channels: normalize channels 0-13 (continuous: elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, awc_total)
+    # Channel 14 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
     static = np.array(store["inputs/static"])
-    n_static = static.shape[0]  # 14
+    n_static = static.shape[0]  # 15
     static_means = np.zeros(n_static, dtype=np.float64)
     static_stds = np.ones(n_static, dtype=np.float64)
-    for ch in range(min(13, n_static)):  # normalize continuous channels 0-12
+    for ch in range(min(14, n_static)):  # normalize continuous channels 0-13
         vals = static[ch][valid_mask]
         static_means[ch] = vals.mean()
         static_stds[ch] = vals.std()
         if static_stds[ch] < 1e-8:
             static_stds[ch] = 1.0
-    # Channel 13 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
+    # Channel 14 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
 
     # Target stats
     target_names = ["pet", "pck", "aet", "cwd"]

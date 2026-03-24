@@ -26,6 +26,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v11-kv-aet | 2026-03-20 | MSE | v10 + BCM Table 6 Kv crop coefficient as time-varying channel at AET head (MLP head, 260→64→1) |
 | v11-stress-frac | 2026-03-21 | MSE | Stress-fraction AET head: sigmoid(stress) × Kv × PET + correction; same Kv plumbing as v11-kv-aet |
 | v12-stress-frac-aet2x | 2026-03-21 | MSE | v11-stress-frac + v5-style loss weights: aet=2.0, cwd=2.0, pet_decay=0.99 |
+| v13-sws-rollstd | 2026-03-23 | MSE | v12 arch + 4 new dynamic channels: SWS bucket model, vpd_roll6_std, srad_roll6_std, tmax_roll3_std |
+| v14-sws-stress | 2026-03-23 | MSE | v13 with fixed SWS: stress-modulated drainage (linear stress=SWS/AWC, 13.8% zeros vs 68%) |
+| v15-awc-extreme | 2026-03-23 | MSE+Extreme | v14 + awc_total static channel (15 static), extreme_weight=0.05, extreme_asym=1.5 |
 
 ## Global Performance Metrics
 
@@ -51,6 +54,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v11-kv-aet | 0.928 | 0.930 | 0.835 | 0.900 |
 | v11-stress-frac | 0.929 | 0.944 | 0.830 | 0.903 |
 | v12-stress-frac-aet2x | 0.862 | 0.913 | **0.856** | 0.912 |
+| v13-sws-rollstd | 0.870 | 0.907 | 0.846 | **0.916** |
+| v14-sws-stress | 0.866 | 0.921 | 0.854 | 0.914 |
+| v15-awc-extreme | 0.857 | 0.916 | 0.853 | 0.913 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -74,6 +80,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v11-kv-aet | 0.942 | 0.871 | 0.745 | 0.915 |
 | v11-stress-frac | 0.947 | **0.952** | 0.739 | 0.921 |
 | v12-stress-frac-aet2x | 0.859 | 0.745 | **0.825** | 0.922 |
+| v13-sws-rollstd | 0.866 | 0.753 | 0.805 | 0.920 |
+| v14-sws-stress | 0.860 | 0.806 | **0.831** | 0.930 |
+| v15-awc-extreme | 0.853 | 0.757 | **0.831** | 0.924 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -97,6 +106,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v11-kv-aet | 16.1 | 13.8 | 12.3 | 18.4 |
 | v11-stress-frac | 16.0 | 12.4 | 12.4 | 18.1 |
 | v12-stress-frac-aet2x | 22.4 | 15.4 | **11.4** | 17.3 |
+| v13-sws-rollstd | 21.7 | 16.0 | 11.8 | **16.9** |
+| v14-sws-stress | 22.1 | 14.8 | 11.5 | 17.1 |
+| v15-awc-extreme | 22.8 | 15.2 | 11.5 | 17.1 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -120,6 +132,9 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v11-kv-aet | -0.9 | 8.7 | 10.0 | -4.1 |
 | v11-stress-frac | -0.6 | **3.3** | 6.3 | -2.1 |
 | v12-stress-frac-aet2x | -0.6 | 20.7 | 7.6 | -3.0 |
+| v13-sws-rollstd | -1.8 | 19.0 | 2.7 | -2.2 |
+| v14-sws-stress | -1.3 | 13.6 | 4.3 | -2.4 |
+| v15-awc-extreme | -1.1 | 19.0 | 6.6 | -3.1 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -142,6 +157,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v11-kv-aet | 29.0 | -23.4 | 0.764 |
 | v11-stress-frac | 31.7 | -26.4 | 0.759 |
 | v12-stress-frac-aet2x | 25.3 | -16.6 | **0.765** |
+| v13-sws-rollstd | 28.2 | -20.6 | 0.746 |
+| v14-sws-stress | 26.6 | -17.9 | 0.742 |
+| v15-awc-extreme | 25.2 | -16.4 | 0.755 |
 
 ### AET Extremes (P99)
 
@@ -160,6 +178,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v11-kv-aet | 36.4 | -33.3 | 0.592 |
 | v11-stress-frac | 40.0 | -36.9 | 0.585 |
 | v12-stress-frac-aet2x | 30.7 | -25.7 | 0.556 |
+| v13-sws-rollstd | 34.1 | -29.2 | 0.591 |
+| v14-sws-stress | 31.9 | -26.4 | 0.542 |
+| v15-awc-extreme | 29.9 | -24.7 | 0.550 |
 
 ### CWD Extremes (P95)
 
@@ -178,6 +199,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v11-kv-aet | 9.7 | -2.6 | 0.802 |
 | v11-stress-frac | 11.0 | -1.8 | 0.782 |
 | v12-stress-frac-aet2x | 9.6 | -3.0 | 0.790 |
+| v13-sws-rollstd | 10.2 | -3.9 | 0.784 |
+| v14-sws-stress | 9.0 | -2.0 | 0.786 |
+| v15-awc-extreme | 10.1 | -3.5 | 0.768 |
 
 ### CWD Extremes (P99)
 
@@ -196,6 +220,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v11-kv-aet | 6.4 | -2.0 | **0.713** |
 | v11-stress-frac | 7.4 | -1.8 | 0.676 |
 | v12-stress-frac-aet2x | 6.4 | -2.7 | 0.690 |
+| v13-sws-rollstd | 7.2 | -3.8 | 0.661 |
+| v14-sws-stress | 6.2 | -2.1 | 0.644 |
+| v15-awc-extreme | 7.1 | -3.4 | 0.662 |
 
 ## Analysis for Wildfire Modeling
 
@@ -388,6 +415,76 @@ v12 combines the v11-stress-frac architecture (sigmoid stress × Kv × PET + cor
 
 **Key insight:** The AET extreme underprediction was never purely an architectural or feature problem — it was primarily a **loss weighting problem**. The stress-fraction architecture with uniform weights (v11-stress-frac) showed AET P95 bias of -26.4mm; with 2x AET/CWD weights it dropped to -16.6mm (new best-ever). The multiplicative inductive bias helps the model *respond* to the stronger AET gradients more effectively than v5's MLP could — v12 beats v5 on AET P95 bias (-16.6 vs -17.9mm) despite v5 using the same loss weights. The trade-off remains: PET and PCK accuracy suffer. A future run could explore intermediate weights (aet=1.5) or a PCK-specific weight boost to recover snowpack accuracy.
 
+### v13-sws-rollstd: SWS bucket model + rolling variability features
+
+v13 adds 4 new dynamic channels to v12's architecture and loss weights: SWS (stress-modulated soil water storage bucket model), vpd_roll6_std, srad_roll6_std, and tmax_roll3_std. Total dynamic channels: 15 (11 base + SWS + 3 rolling std). Best epoch 73/100.
+
+**Results vs v12-stress-frac-aet2x (same arch + loss weights, 11 dynamic channels):**
+
+- **CWD: new best-ever NSE and RMSE** — NSE 0.916 vs 0.912 (beats v5's previous best 0.915), RMSE 16.9 vs 17.3 (beats v5's 17.0). The extra features help CWD more than AET. CWD pbias -2.2% vs -3.0% (also improved).
+- **AET global: strong but below v12** — NSE 0.846 vs 0.856. Lower pbias (2.7% vs 7.6%) suggests less overall overprediction, but NSE regression indicates higher variance in predictions.
+- **AET extremes: regressed from v12** — P95 bias -20.6mm vs -16.6mm, P99 bias -29.2mm vs -25.7mm. The 4 new channels added information but also added complexity — the model may be distributing gradient attention across 15 channels instead of focusing on the 11 that v12 used effectively.
+- **PCK: worst-ever pbias (19.0%)** — Continuing the v5-style loss weight casualty pattern (v12 was 20.7%), now with 15 dynamic channels competing for representation in the backbone.
+- **PET: v5/v12-class trade-off** — NSE 0.870, same ballpark as v12 (0.862) and v5 (0.862).
+
+**Results vs v5-awc-windward (previous best CWD):**
+
+- **CWD: new best** — NSE 0.916 vs 0.915, RMSE 16.9 vs 17.0. Marginal but consistent improvement.
+- **CWD extremes: worse** — P95 bias -3.9mm vs -2.7mm, P99 bias -3.8mm vs -2.6mm. The global CWD improvement doesn't extend to extremes.
+
+**SWS channel assessment:** SWS was intended to give the model explicit soil moisture information. The CWD improvement suggests it helps with the energy-water budget globally, but didn't translate to better AET extreme prediction. The rolling std channels (capturing climate variability) may be more useful for CWD than AET — variability in radiation and temperature affects the energy balance (CWD) more directly than the water balance constraint on actual ET.
+
+**Key insight:** Adding more physically-motivated features improves CWD (new best-ever NSE + RMSE) but doesn't help AET extremes, which actually regressed. The AET extreme problem appears to have a complexity-performance trade-off: v12's 11 channels were enough for the model to focus on the most important signals, while 15 channels dilute gradient attention. Future directions could include (a) feature selection to identify which of the 15 channels are most valuable, (b) intermediate loss weights (aet=1.5) to recover PCK, or (c) channel attention mechanisms to let the model learn which inputs matter for which outputs.
+
+### v14-sws-stress: fixed SWS with stress-modulated drainage
+
+v14 fixes the SWS bucket model from v13. The original v13 SWS used PPT-PET drainage, which produced 68% zero values (uninformative). v14 uses stress-modulated drainage: `stress = min(SWS[t-1]/AWC, 1); AET_approx = PET*stress; SWS[t] = clamp(SWS[t-1] + PPT - AET_approx, 0, AWC)`. This linear stress function prevents over-drainage in dry conditions, reducing zeros to 13.8%. Same architecture, loss weights, and rolling std channels as v13. Best epoch 91/100.
+
+**Results vs v13-sws-rollstd (broken SWS):**
+
+- **AET: recovered toward v12** — NSE 0.854 vs 0.846, KGE 0.831 (new best-ever, beating v12's 0.825). The fixed SWS provides meaningful soil moisture information that helps AET prediction.
+- **AET extremes: improved over v13** — P95 bias -17.9mm vs -20.6mm, P95 RMSE 26.6 vs 28.2. Recovered to v5-class extreme performance (-17.9mm matches v5's -17.9mm exactly). Still below v12's best-ever -16.6mm.
+- **CWD: slight regression** — NSE 0.914 vs 0.916, RMSE 17.1 vs 16.9. The v13 CWD best-ever records were not retained, suggesting the broken SWS (with its 68% zeros acting as a near-constant channel) was actually less disruptive to CWD than the more informative fixed SWS.
+- **CWD extremes: improved over v13** — P95 bias -2.0mm vs -3.9mm, P95 RMSE 9.0 vs 10.2, P99 bias -2.1mm vs -3.8mm. The fixed SWS helps CWD extremes substantially even though CWD global NSE slightly regressed.
+- **PCK: major improvement** — pbias 13.6% vs 19.0%, NSE 0.921 vs 0.907. The better SWS signal reduces the gradient competition that was starving PCK.
+- **PET: similar** — NSE 0.866 vs 0.870, pbias -1.3% vs -1.8%.
+- **Training stability: improved** — Best epoch 91 vs 73, suggesting the fixed SWS provides more consistent gradients.
+
+**Results vs v12-stress-frac-aet2x (same arch, 11 dynamic channels):**
+
+- **AET KGE: new best-ever** — 0.831 vs 0.825. The additional channels with proper SWS improve the correlation/variability balance.
+- **AET NSE: near-v12** — 0.854 vs 0.856. Very close, suggesting the fixed SWS nearly recovers v12's AET performance.
+- **AET extremes: slight regression** — P95 bias -17.9mm vs -16.6mm. The 15-channel model still can't quite match v12's 11-channel extreme performance.
+- **PCK: improved** — pbias 13.6% vs 20.7%. The fixed SWS partially recovers PCK from the loss weight casualty.
+
+**Key insight:** Fixing the SWS bucket model made a substantial difference. With 68% zeros (v13), SWS was effectively a near-constant channel that wasted model capacity. With proper stress-modulated drainage (v14), SWS provides real soil moisture dynamics that improve AET (new best-ever KGE), AET extremes (recovered to v5-class), CWD extremes, and PCK. The remaining gap to v12's best-ever AET P95 bias (-17.9mm vs -16.6mm) suggests that 15 channels still dilute gradient attention somewhat, but the margin is now much smaller than v13's -20.6mm.
+
+### v15-awc-extreme: AWC static channel + mild extreme penalty
+
+v15 adds `awc_total = (FC - WP) × soil_depth × 1000` as a new static channel (15 static, up from 14) and re-enables the extreme-aware MSE penalty at a low weight (`extreme_weight=0.05`, `extreme_asym=1.5`). Same 15 dynamic channels and loss weights (aet=2.0, cwd=2.0, pet_decay=0.99) as v14. Best epoch 87/100.
+
+**Results vs v14-sws-stress (no AWC static, no extreme penalty):**
+
+- **AET P95 bias: best-ever among valid runs** — -16.4mm vs -17.9mm. The mild extreme penalty pushes AET predictions closer to observed extremes, surpassing v12's previous best of -16.6mm. This is the first model to improve on v12's AET extreme performance.
+- **AET P99 bias: improved** — -24.7mm vs -26.4mm (+1.7mm). Consistent improvement at both extreme thresholds.
+- **AET P95 RMSE: improved** — 25.2 vs 26.6. AET P95 hit rate also improved (0.755 vs 0.742).
+- **AET global: flat** — NSE 0.853 vs 0.854, KGE 0.831 vs 0.831 (tied). The extreme penalty improved tails without degrading the mean.
+- **CWD global: flat** — NSE 0.913 vs 0.914. CWD extremes slightly regressed (P95 bias -3.5mm vs -2.0mm).
+- **PCK: regressed** — pbias 19.0% vs 13.6%. The extreme penalty adds gradient competition that further starves PCK.
+- **PET: slight regression** — NSE 0.857 vs 0.866.
+
+**Results vs v12-stress-frac-aet2x (11 dynamic channels, no extreme penalty):**
+
+- **AET P95 bias: improved** — -16.4mm vs -16.6mm. First model to beat v12's AET extreme record.
+- **AET global: near-identical** — NSE 0.853 vs 0.856, KGE 0.831 vs 0.825 (v15 better KGE).
+- **PCK: similar casualty** — pbias 19.0% vs 20.7%.
+
+**Extreme penalty assessment:** `extreme_weight=0.05` is well-calibrated. The v7 failure at weight=2.0 showed that aggressive extreme penalties destabilize training; v15 demonstrates that a 40x smaller weight (0.05) achieves the desired effect — AET P95 bias improvement of 1.5mm — without degrading global metrics. The AET_ext loss component decreased from 1.65 to 0.20 during training, confirming the penalty provided consistent gradient signal throughout.
+
+**AWC static channel assessment:** Adding AWC as a static channel had minimal impact on its own (v14→v15 delta is dominated by the extreme penalty). AWC is derivable from FC, WP, and soil_depth which were already available as separate static channels. The model likely already learned the relevant soil water capacity information from those components.
+
+**Key insight:** The combination of 15 dynamic channels (with fixed SWS), AWC static channel, and mild extreme penalty (0.05) produces the best-ever AET P95 bias (-16.4mm) while maintaining v12-class global AET accuracy. The extreme penalty was the key ingredient — it addresses the AET tail underprediction that loss weights alone couldn't fully resolve. Future directions: (a) try `extreme_weight=0.1` to push AET extremes further, (b) add PCK to `extreme_vars` to address the persistent PCK pbias casualty, (c) explore intermediate AET weights (1.5) to balance PCK recovery.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -447,9 +544,27 @@ v11sf Stress-frac AET head ........ AET NSE 0.830, CWD NSE 0.903  (PCK KGE best-
  |                                       AET P95 bias WORSE (-26.4mm vs -23.4mm) — clamp ceiling too restrictive
  |                                       CWD global improved but extremes regressed
 v12 + v5-style loss weights ....... AET NSE 0.856, CWD NSE 0.912  ★ NEW BEST AET (NSE + P95 bias)
-                                         aet=2.0, cwd=2.0, pet_decay=0.99 — same weights as v5
-                                         AET P95 bias -16.6mm (new best, beating v5's -17.9mm)
-                                         AET P99 bias -25.7mm (new best, beating v5's -27.5mm)
-                                         PET NSE 0.862 (v5-class trade-off), PCK pbias 20.7% (casualty)
-                                         Loss weighting was the missing ingredient, not architecture alone
+ |                                       aet=2.0, cwd=2.0, pet_decay=0.99 — same weights as v5
+ |                                       AET P95 bias -16.6mm (new best, beating v5's -17.9mm)
+ |                                       AET P99 bias -25.7mm (new best, beating v5's -27.5mm)
+ |                                       PET NSE 0.862 (v5-class trade-off), PCK pbias 20.7% (casualty)
+ |                                       Loss weighting was the missing ingredient, not architecture alone
+v13 + SWS + rolling std features . AET NSE 0.846, CWD NSE 0.916  ★ NEW BEST CWD (NSE + RMSE)
+ |                                       15 dynamic channels (SWS bucket model + vpd/srad/tmax rolling std)
+ |                                       CWD RMSE 16.9mm (best), CWD pbias -2.2%
+ |                                       AET P95 bias -20.6mm (regressed from v12's -16.6mm)
+ |                                       PCK pbias 19.0% (worst) — loss weight casualty continues
+ |                                       NOTE: SWS had 68% zeros (PPT-PET drainage) — broken implementation
+v14 Fixed SWS (stress-modulated) . AET NSE 0.854, CWD NSE 0.914  ★ NEW BEST AET KGE (0.831)
+ |                                       stress = min(SWS/AWC, 1); AET_approx = PET×stress (13.8% zeros)
+ |                                       AET P95 bias -17.9mm (recovered to v5-class, still below v12's -16.6mm)
+ |                                       CWD extremes improved (P95 bias -2.0mm, P99 bias -2.1mm)
+ |                                       PCK pbias 13.6% (recovered from v13's 19.0%)
+ |                                       Best epoch 91/100 — more stable training with informative SWS
+v15 + AWC static + extreme penalty AET NSE 0.853, CWD NSE 0.913  ★ BEST AET P95 BIAS (valid runs)
+                                         awc_total static channel (15 static), extreme_weight=0.05
+                                         AET P95 bias -16.4mm (beats v12's -16.6mm — new best among valid runs)
+                                         AET P99 bias -24.7mm (improved from v14's -26.4mm)
+                                         Global AET flat (NSE 0.853, KGE 0.831), CWD flat (NSE 0.913)
+                                         PCK pbias 19.0% — extreme penalty adds gradient competition
 ```

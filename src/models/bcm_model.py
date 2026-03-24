@@ -90,7 +90,7 @@ class BCMEmulator(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Shape (B, C, T). Input features (10 dynamic + 13 static, no KBDI).
+            Shape (B, C, T). Input features (10 dynamic + 14 static, no KBDI).
         tf_ratio : float
             Fraction of timesteps using ground-truth for pck_prev/aet_prev.
             1.0 = all GT (teacher forcing), 0.0 = all predicted.

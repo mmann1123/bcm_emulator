@@ -39,7 +39,7 @@ No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and
 prepare_data.py (downloads + zarr build)
     → data/bcm_dataset.zarr
         /inputs/dynamic   (T, 15, H, W)  - monthly climate + derived features
-        /inputs/static    (14, H, W)     - terrain + soil + vegetation
+        /inputs/static    (15, H, W)     - terrain + soil + vegetation
         /targets/{pet,pck,aet,cwd}  (T, H, W)
         /norm/*           - per-channel z-score stats (zarr stores RAW values; norm applied on-the-fly by dataset)
 
@@ -55,9 +55,9 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 27, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 35, T) → Backbone
-  27 = 14 dynamic (excl. KBDI) + 13 continuous static
-  35 = 27 + 8 FVEG embedding
+Input: (B, 28, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 36, T) → Backbone
+  28 = 14 dynamic (excl. KBDI) + 14 continuous static
+  36 = 28 + 8 FVEG embedding
 
 Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
           Receptive field: 125 months. Output: (B, 256, T)
@@ -81,12 +81,13 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 **Dynamic (14 backbone + 1 KBDI routed to AET + 1 Kv routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std | kbdi (AET-only, idx 10) | kv (AET-only, from BCM Table 6)
 
-- **sws** (v14+): Soil Water Storage from stress-modulated bucket model: `stress = min(SWS[t-1]/AWC, 1); AET_approx = PET*stress; SWS[t] = clamp(SWS[t-1] + PPT - AET_approx, 0, AWC)`. Linear stress prevents over-drainage in dry conditions (v13 used PPT-PET which gave 68% zeros). AWC from (FC-WP)×soil_depth. Added/updated via `scripts/add_sws_channel.py --overwrite`.
-- **vpd_roll6_std, srad_roll6_std, tmax_roll3_std** (v13+): Rolling standard deviations capturing climate variability. Identified by `scripts/panel_extremes_analysis.py` as disproportionately important for AET/CWD extremes (up to 73× more important in tail vs overall). Added via `scripts/add_rolling_std_channels.py`.
+- **sws** (v14+): Soil Water Storage from stress-modulated bucket model: `stress = min(SWS[t-1]/AWC, 1); AET_approx = PET*stress; SWS[t] = clamp(SWS[t-1] + PPT - AET_approx, 0, AWC)`. Linear stress prevents over-drainage in dry conditions (v13 used PPT-PET which gave 68% zeros). AWC from (FC-WP)×soil_depth. Now computed in `build_zarr_store()`.
+- **vpd_roll6_std, srad_roll6_std, tmax_roll3_std** (v13+): Rolling standard deviations capturing climate variability. Identified by `scripts/panel_extremes_analysis.py` as disproportionately important for AET/CWD extremes (up to 73× more important in tail vs overall). Now computed in `build_zarr_store()`.
 
-**Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
-- Channels 0-12 are continuous (z-score normalized)
-- Channel 13 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
+**Static (15):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, awc_total, fveg_class_id
+- Channels 0-13 are continuous (z-score normalized)
+- **awc_total** (v15+): Available Water Capacity = (FC - WP) × soil_depth × 1000 [mm]. Derived from existing static channels; provides explicit soil water holding capacity to the model.
+- Channel 14 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
 
 ### Dataset (src/data/dataset.py)
 
@@ -106,7 +107,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 14 dyn + 13 static + 8 fveg embed = 35; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 14 dyn + 14 static + 8 fveg embed = 36; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Loss Function
 
@@ -123,7 +124,7 @@ Total = Σ w_var * Huber(var) + extreme_weight * MSE_extreme(extreme_vars)
 
 ## Current Status
 
-Best AET extremes: **v12-stress-frac-aet2x** (AET NSE 0.856, AET P95 bias -16.6mm). Best overall: **v6-huber** (PET NSE 0.927, PCK NSE 0.950, CWD NSE 0.907). Known weakness: AET/CWD extreme underprediction. **v13-sws-rollstd** (training) adds SWS + rolling variability features to address this. See `docs/model_comparison.md` for full run-by-run analysis.
+Best AET extremes: **v15-awc-extreme** (AET P95 bias -16.4mm — best among valid runs, beating v12's -16.6mm). Best AET KGE: **v14-sws-stress** / **v15-awc-extreme** (0.831 tied). Best CWD: **v13-sws-rollstd** (CWD NSE 0.916, CWD RMSE 16.9 — both best-ever). Best overall: **v6-huber** (PET NSE 0.927, PCK NSE 0.950). v15 adds AWC static channel (15 static) and mild extreme penalty (weight=0.05), achieving best-ever AET P95 bias while maintaining v12-class global AET. See `docs/model_comparison.md` for full run-by-run analysis.
 
 **Important:** The zarr stores **raw (unnormalized) values** for all channels. Normalization stats in `/norm/*` are applied on-the-fly by `BCMPixelDataset`. When adding derived channels via scripts (not `prepare_data.py --steps zarr`), write raw values and append norm stats — do NOT z-normalize before writing.
 
@@ -142,7 +143,7 @@ Every new model version MUST follow this exact sequence. Do not skip steps or re
 # 1. Download any new data (only needed if new data sources were added)
 conda run -n deep_field python prepare_data.py --steps soil
 
-# 2. Rebuild zarr store (ALWAYS required after changing static/dynamic channels)
+# 2. Rebuild zarr store (see "Zarr Build Sequence" below for full 15-channel build)
 conda run -n deep_field python prepare_data.py --steps zarr
 
 # 3. Train with a descriptive run-id and notes explaining what changed
@@ -166,3 +167,20 @@ This is the canonical workflow. All five steps must be run in order for every ne
   conda run -n deep_field python prepare_data.py --config snapshots/{run_id}/config.yaml --steps zarr
   ```
 - Source rasters are stable on disk; zarr is deterministically derived from config + rasters.
+
+## Zarr Build Sequence (Full Rebuild)
+
+A single command produces the full 15-channel zarr:
+
+```bash
+conda run -n deep_field python prepare_data.py --steps zarr
+```
+
+`build_zarr_store()` in `preprocessing.py` handles all 15 dynamic channels:
+- Channels 0-10: base climate inputs (ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi)
+- Channel 11: SWS (stress-modulated bucket model, v14+ formulation)
+- Channels 12-14: rolling std (vpd_roll6_std, srad_roll6_std, tmax_roll3_std)
+
+Result: `(T, 15, H, W)` dynamic + `(15, H, W)` static, `in_channels=36` in config.yaml
+
+The standalone scripts `scripts/add_sws_channel.py` and `scripts/add_rolling_std_channels.py` are retained for patching existing zarr stores without a full rebuild.

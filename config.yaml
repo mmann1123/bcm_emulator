@@ -51,7 +51,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 35  # 14 dynamic + 13 static + 8 fveg embedding (KBDI routed separately; SWS + 3 rolling std channels added)
+    in_channels: 36  # 14 dynamic + 14 static + 8 fveg embedding (KBDI routed separately; SWS + 3 rolling std + awc_total static)
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1
@@ -85,13 +85,13 @@ training:
   loss_weights:
     pet_initial: 1.0
     pck_initial: 1.0
-    aet_initial: 2.0
+    aet_initial: 1.5
     cwd_initial: 2.0
     pet_decay: 0.99
     pet_floor: 0.5
     huber_delta: 1.35   # MSE for errors < 1.35σ, MAE for errors > 1.35σ
     extreme_threshold: 1.28  # z-score cutoff for extreme penalty (~P90)
-    extreme_weight: 0.0      # disabled for v8b (was 0.1 in v7b)
+    extreme_weight: 0.05     # mild extreme penalty (v15+)
     extreme_vars: ["aet"]    # variables to apply extreme penalty to
     extreme_asym: 1.5        # underprediction penalized 1.5x more
 
