@@ -2,7 +2,7 @@
 
 ## Objective
 
-This document compares all model versions (v1 through v7) with an emphasis on metrics that matter for **wildfire modeling**: accurate prediction of climatic water deficit (CWD) and actual evapotranspiration (AET) extremes. CWD is the primary driver of vegetation drought stress and fire danger in California; AET extremes reflect periods of rapid vegetation drying. Underpredicting these extremes means underestimating fire risk.
+This document compares all model versions (v1 through v17) with an emphasis on metrics that matter for **wildfire modeling**: accurate prediction of climatic water deficit (CWD) and actual evapotranspiration (AET) extremes. CWD is the primary driver of vegetation drought stress and fire danger in California; AET extremes reflect periods of rapid vegetation drying. Underpredicting these extremes means underestimating fire risk.
 
 ## Run Summary
 
@@ -30,6 +30,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v14-sws-stress | 2026-03-23 | MSE | v13 with fixed SWS: stress-modulated drainage (linear stress=SWS/AWC, 13.8% zeros vs 68%) |
 | v15-awc-extreme | 2026-03-23 | MSE+Extreme | v14 + awc_total static channel (15 static), extreme_weight=0.05, extreme_asym=1.5 |
 | v16-aet1.5-extreme | 2026-03-23 | MSE+Extreme | v15 with aet_initial=1.5 (from 2.0), cwd=2.0, extreme_weight=0.05 — rebalanced AET/PCK trade-off |
+| v17-polaris-awc | 2026-03-24 | MSE+Extreme | POLARIS root-zone AWC (0-100cm) for SWS; dropped awc_total static (14 static); aet=1.5, extreme_weight=0.05 |
 
 ## Global Performance Metrics
 
@@ -38,27 +39,28 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | Run | PET | PCK | AET | CWD |
 |-----|-----|-----|-----|-----|
 | v1-baseline | 0.852 | 0.862 | 0.790 | 0.872 |
-| v2-fveg-srad-fix | **0.928** | 0.945 | 0.831 | 0.902 |
+| v2-fveg-srad-fix | 0.928 | 0.945 | 0.831 | 0.902 |
 | v3-vpd-awc | 0.926 | 0.941 | 0.833 | 0.902 |
 | v4-soil-props | 0.927 | 0.940 | 0.834 | 0.903 |
-| v5-awc-windward | 0.862 | 0.944 | **0.851** | **0.915** |
+| v5-awc-windward | 0.862 | 0.944 | 0.851 | 0.915 |
 | v5b-pet-reweight | 0.868 | 0.938 | 0.845 | 0.911 |
 | v6-huber | 0.927 | 0.950 | 0.828 | 0.907 |
 | v7-extreme-aware | 0.876 | **0.961** | 0.760 | 0.830 |
 | v7b-extreme-low | 0.876 | **0.961** | 0.760 | 0.830 |
-| v8-soil-physics | 0.914 | 0.935 | **0.851** | 0.894 |
+| v8-soil-physics | 0.914 | 0.935 | 0.851 | 0.894 |
 | v8b-no-extreme | 0.927 | 0.916 | 0.839 | 0.899 |
 | v8c-mse | 0.927 | 0.930 | 0.834 | 0.907 |
 | v9-drought-code | 0.927 | 0.932 | 0.810 | 0.888 |
 | v9-kbdi | 0.925 | 0.929 | 0.824 | 0.896 |
 | v10-kbdi-aet-only | 0.927 | 0.929 | 0.840 | 0.897 |
 | v11-kv-aet | 0.928 | 0.930 | 0.835 | 0.900 |
-| v11-stress-frac | 0.929 | 0.944 | 0.830 | 0.903 |
+| v11-stress-frac | **0.929** | 0.944 | 0.830 | 0.903 |
 | v12-stress-frac-aet2x | 0.862 | 0.913 | **0.856** | 0.912 |
-| v13-sws-rollstd | 0.870 | 0.907 | 0.846 | **0.916** |
+| v13-sws-rollstd | 0.870 | 0.907 | 0.846 | 0.916 |
 | v14-sws-stress | 0.866 | 0.921 | 0.854 | 0.914 |
 | v15-awc-extreme | 0.857 | 0.916 | 0.853 | 0.913 |
 | v16-aet1.5-extreme | 0.861 | 0.930 | 0.848 | 0.912 |
+| v17-polaris-awc | 0.879 | 0.949 | 0.851 | **0.929** |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -69,10 +71,10 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v3-vpd-awc | 0.946 | 0.873 | 0.755 | 0.931 |
 | v4-soil-props | 0.944 | 0.863 | 0.756 | 0.932 |
 | v5-awc-windward | 0.862 | 0.910 | 0.814 | 0.926 |
-| v5b-pet-reweight | 0.871 | 0.811 | **0.824** | **0.937** |
+| v5b-pet-reweight | 0.871 | 0.811 | 0.824 | **0.937** |
 | v6-huber | 0.945 | 0.886 | 0.740 | 0.929 |
-| v7-extreme-aware | 0.881 | **0.924** | 0.588 | 0.862 |
-| v7b-extreme-low | 0.881 | **0.924** | 0.588 | 0.862 |
+| v7-extreme-aware | 0.881 | 0.924 | 0.588 | 0.862 |
+| v7b-extreme-low | 0.881 | 0.924 | 0.588 | 0.862 |
 | v8-soil-physics | 0.930 | 0.923 | 0.791 | 0.920 |
 | v8b-no-extreme | 0.944 | 0.816 | 0.767 | 0.935 |
 | v8c-mse | 0.946 | 0.918 | 0.744 | 0.928 |
@@ -81,38 +83,40 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v10-kbdi-aet-only | 0.942 | 0.826 | 0.769 | 0.925 |
 | v11-kv-aet | 0.942 | 0.871 | 0.745 | 0.915 |
 | v11-stress-frac | 0.947 | **0.952** | 0.739 | 0.921 |
-| v12-stress-frac-aet2x | 0.859 | 0.745 | **0.825** | 0.922 |
+| v12-stress-frac-aet2x | 0.859 | 0.745 | 0.825 | 0.922 |
 | v13-sws-rollstd | 0.866 | 0.753 | 0.805 | 0.920 |
 | v14-sws-stress | 0.860 | 0.806 | **0.831** | 0.930 |
 | v15-awc-extreme | 0.853 | 0.757 | **0.831** | 0.924 |
 | v16-aet1.5-extreme | 0.859 | 0.868 | 0.816 | 0.920 |
+| v17-polaris-awc | 0.872 | 0.904 | 0.798 | **0.931** |
 
 ### RMSE (mm/month) -- lower is better
 
 | Run | PET | PCK | AET | CWD |
 |-----|-----|-----|-----|-----|
 | v1-baseline | 23.2 | 19.5 | 13.8 | 20.8 |
-| v2-fveg-srad-fix | **16.2** | 12.3 | 12.4 | 18.2 |
+| v2-fveg-srad-fix | 16.2 | 12.3 | 12.4 | 18.2 |
 | v3-vpd-awc | 16.4 | 12.8 | 12.3 | 18.2 |
 | v4-soil-props | 16.3 | 12.9 | 12.3 | 18.1 |
-| v5-awc-windward | 22.4 | 12.5 | **11.6** | **17.0** |
+| v5-awc-windward | 22.4 | 12.5 | 11.6 | 17.0 |
 | v5b-pet-reweight | 21.9 | 13.0 | 11.8 | 17.4 |
-| v6-huber | **16.2** | 11.7 | 12.5 | 17.7 |
+| v6-huber | 16.2 | 11.7 | 12.5 | 17.7 |
 | v7-extreme-aware | 21.2 | **10.3** | 14.7 | 24.0 |
 | v7b-extreme-low | 21.2 | **10.3** | 14.7 | 24.0 |
-| v8-soil-physics | 17.7 | 13.4 | **11.6** | 19.0 |
+| v8-soil-physics | 17.7 | 13.4 | 11.6 | 19.0 |
 | v8b-no-extreme | 16.3 | 15.2 | 12.1 | 18.5 |
 | v8c-mse | 16.3 | 13.8 | 12.3 | 17.7 |
 | v9-drought-code | 16.3 | 13.7 | 13.1 | 19.5 |
 | v9-kbdi | 16.5 | 14.0 | 12.7 | 18.8 |
 | v10-kbdi-aet-only | 16.3 | 14.0 | 12.1 | 18.7 |
 | v11-kv-aet | 16.1 | 13.8 | 12.3 | 18.4 |
-| v11-stress-frac | 16.0 | 12.4 | 12.4 | 18.1 |
+| v11-stress-frac | **16.0** | 12.4 | 12.4 | 18.1 |
 | v12-stress-frac-aet2x | 22.4 | 15.4 | **11.4** | 17.3 |
-| v13-sws-rollstd | 21.7 | 16.0 | 11.8 | **16.9** |
+| v13-sws-rollstd | 21.7 | 16.0 | 11.8 | 16.9 |
 | v14-sws-stress | 22.1 | 14.8 | 11.5 | 17.1 |
 | v15-awc-extreme | 22.8 | 15.2 | 11.5 | 17.1 |
 | v16-aet1.5-extreme | 22.4 | 13.8 | 11.7 | 17.2 |
+| v17-polaris-awc | 21.0 | 11.8 | 11.6 | **15.5** |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -127,7 +131,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v6-huber | -1.0 | 9.4 | 4.1 | **-1.7** |
 | v7-extreme-aware | 3.9 | 7.2 | 40.3 | -11.1 |
 | v7b-extreme-low | 3.9 | 7.2 | 40.3 | -11.1 |
-| v8-soil-physics | **-0.3** | **4.2** | 12.7 | -4.4 |
+| v8-soil-physics | **-0.3** | 4.2 | 12.7 | -4.4 |
 | v8b-no-extreme | -1.0 | 13.3 | 4.9 | -2.0 |
 | v8c-mse | -0.9 | 5.0 | 6.4 | -2.5 |
 | v9-drought-code | -1.1 | 8.2 | 10.3 | -4.4 |
@@ -140,6 +144,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v14-sws-stress | -1.3 | 13.6 | 4.3 | -2.4 |
 | v15-awc-extreme | -1.1 | 19.0 | 6.6 | -3.1 |
 | v16-aet1.5-extreme | -0.5 | 9.7 | 9.5 | -3.7 |
+| v17-polaris-awc | -0.6 | 6.8 | 7.2 | -2.7 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -166,6 +171,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v14-sws-stress | 26.6 | -17.9 | 0.742 |
 | v15-awc-extreme | 25.2 | -16.4 | 0.755 |
 | v16-aet1.5-extreme | 25.7 | -16.3 | 0.753 |
+| v17-polaris-awc | 26.8 | -19.2 | 0.759 |
 
 ### AET Extremes (P99)
 
@@ -188,6 +194,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v14-sws-stress | 31.9 | -26.4 | 0.542 |
 | v15-awc-extreme | 29.9 | -24.7 | 0.550 |
 | v16-aet1.5-extreme | 30.2 | -24.9 | 0.544 |
+| v17-polaris-awc | 33.1 | -28.4 | 0.572 |
 
 ### CWD Extremes (P95)
 
@@ -210,12 +217,13 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v14-sws-stress | 9.0 | -2.0 | 0.786 |
 | v15-awc-extreme | 10.1 | -3.5 | 0.768 |
 | v16-aet1.5-extreme | 9.6 | -3.8 | 0.774 |
+| v17-polaris-awc | 9.0 | -3.0 | **0.781** |
 
 ### CWD Extremes (P99)
 
 | Run | RMSE (mm) | Bias (mm) | Exceedance Hit Rate |
 |-----|-----------|-----------|---------------------|
-| v5-awc-windward | 5.7 | -2.6 | **0.692** |
+| v5-awc-windward | 5.7 | -2.6 | 0.692 |
 | v5b-pet-reweight | **5.0** | -1.8 | 0.680 |
 | v6-huber | 5.2 | **-0.3** | 0.685 |
 | v7b-extreme-low | 10.3 | -5.6 | 0.651 |
@@ -232,6 +240,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v14-sws-stress | 6.2 | -2.1 | 0.644 |
 | v15-awc-extreme | 7.1 | -3.4 | 0.662 |
 | v16-aet1.5-extreme | 6.6 | -3.6 | 0.672 |
+| v17-polaris-awc | 5.7 | -2.8 | **0.684** |
 
 ## Analysis for Wildfire Modeling
 
@@ -245,11 +254,13 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 
 ### Key trade-offs observed
 
-**v6-huber is the best global model** with the highest PET NSE (0.927) and PCK NSE (0.950), and lowest CWD bias (-1.7%). However, it has the **worst AET extreme performance**: P95 bias of -26.6mm and P99 bias of -37.7mm. The Huber loss with delta=1.35 transitions to MAE (linear gradient) for large errors, which actually *reduces* the model's incentive to push predictions into the tails.
+**v17-polaris-awc is the best CWD model** with CWD NSE 0.929, RMSE 15.5mm, and KGE 0.931 — all best-ever. It also recovers PCK (NSE 0.949, pbias 6.8%) and PET (NSE 0.879) to near-best levels among weighted-loss runs. The trade-off: AET P95 bias regressed to -19.2mm (from v16's -16.3mm) because the more responsive POLARIS AWC-based SWS overcorrects extreme AET.
 
-**v5-awc-windward is the best extreme-value model** with AET P95 bias of -17.9mm (9mm better than v6) and the highest AET NSE (0.851) and CWD NSE (0.915). The trade-off: PET NSE drops to 0.862 (vs 0.927), which cascades through the hierarchy.
+**v6-huber remains the best global PET/PCK model** with PET NSE 0.927 and PCK NSE 0.950, but has the worst AET extreme performance (P95 bias -26.6mm).
 
-**No model resolves the fundamental tension:** Huber loss stabilizes training and improves global metrics, but suppresses extreme-value gradients. Higher AET/CWD weights (v5) improve extremes but degrade PET.
+**v16-aet1.5-extreme has the best AET P95 bias** (-16.3mm) with good PCK recovery (pbias 9.7%), but CWD lags behind v17.
+
+**The core tension remains:** improving CWD (via more responsive SWS) regresses AET extremes. The v18 tuning sweep targets this trade-off by testing extreme penalty strength, loss weights, and loss function type.
 
 ### v7-extreme-aware: lesson learned (weight=2.0 -- FAILED)
 
@@ -514,12 +525,38 @@ v16 reduces `aet_initial` from 2.0 to 1.5 while keeping `cwd_initial=2.0`, `extr
 
 **Key insight:** The aet_initial=1.5 experiment reveals that the extreme penalty (`extreme_weight=0.05`) is doing the heavy lifting for AET tail accuracy, not the base AET loss weight. Reducing `aet_initial` from 2.0 to 1.5 barely affected AET P95 bias (-16.3mm vs -16.4mm) but dramatically recovered PCK (pbias 9.7% vs 19.0%). This suggests the optimal configuration is moderate base weights (aet=1.5) combined with targeted extreme penalties — the base weights handle the bulk of the distribution while the extreme penalty handles the tails. Future directions: (a) try aet_initial=1.0 (uniform weights) with extreme_weight=0.05 to test if even lower AET weight maintains extreme performance, (b) increase extreme_weight to 0.1 to push AET P95 bias further, (c) add PCK to extreme_vars to address the remaining 9.7% pbias.
 
-### Remaining gaps for operational wildfire use
+### v17-polaris-awc: POLARIS root-zone AWC for SWS + dropped awc_total static
 
-1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
-2. **Fire season focus:** Current metrics average over all months. A fire-season-only evaluation (Jun-Nov) would better reflect operational accuracy.
-3. **Spatial validation against fire perimeters:** Comparing CWD anomalies with MTBS/FRAP fire perimeters would validate whether the model's CWD patterns actually predict where fires occur.
-4. **Forward climate scenarios:** The emulator's value proposition is running CMIP6-forced BCM thousands of times faster than the process model. Validation on out-of-sample climate extremes (2020-2025 held out) would build confidence.
+v17 switches the SWS bucket model's AWC source from BCMv8 full-column `(FC - WP) × soil_depth × 1000` (~500-2000mm) to POLARIS root-zone (0-100cm) AWC (~300-500mm). The BCMv8 AWC overestimated soil water storage capacity, understating drought stress in the SWS channel. v17 also drops awc_total as a static channel (back to 14 static from v15's 15), since POLARIS AWC has minimal spatial contrast (~400mm uniform). Same loss configuration as v16: aet=1.5, cwd=2.0, extreme_weight=0.05. Best epoch 69/100, best val_loss 0.505.
+
+**Results vs v16-aet1.5-extreme (BCMv8 AWC, 15 static channels):**
+
+- **CWD: new best-ever NSE** — NSE 0.929 vs 0.912 (+0.017), RMSE 15.5 vs 17.2mm (new best-ever, beating v13's 16.9mm), KGE 0.931 vs 0.920. The POLARIS AWC produces a more realistic SWS drought signal that dramatically improves the water deficit calculation. CWD pbias -2.7% vs -3.7% (improved).
+- **CWD extremes: improved** — P95 bias -3.0mm vs -3.8mm, P95 RMSE 9.0 vs 9.6 (approaching v5b's best-ever 8.2), P99 bias -2.8mm vs -3.6mm, P99 RMSE 5.7 vs 6.6 (matching v5-awc-windward). CWD P95 hit rate 0.781 vs 0.774, P99 hit rate 0.684 vs 0.672 — both improved.
+- **PCK: near-best recovery** — NSE 0.949 vs 0.930, RMSE 11.8 vs 13.8 (new best among weighted-loss runs), pbias 6.8% vs 9.7%, KGE 0.904 vs 0.868. Approaching v6-huber's best-ever PCK NSE (0.950). Dropping awc_total freed the model from a near-constant static channel that was adding noise to the PCK representation.
+- **PET: improved** — NSE 0.879 vs 0.861, RMSE 21.0 vs 22.4. Better than any previous weighted-loss run (v5-v16 range: 0.857-0.870). pbias -0.6% (similar to v16's -0.5%).
+- **AET global: slight improvement** — NSE 0.851 vs 0.848, RMSE 11.6 vs 11.7, pbias 7.2% vs 9.5% (better). KGE 0.798 vs 0.816 (regression — lower correlation component despite better bias).
+- **AET extremes: regressed** — P95 bias -19.2mm vs -16.3mm (+2.9mm worse), P99 bias -28.4mm vs -24.9mm (+3.5mm worse). The POLARIS AWC's lower values (300-500mm vs 500-2000mm) mean SWS drains faster and stays depleted longer — the model may be using the SWS channel as a "dry = less AET" signal too aggressively, compressing extreme AET predictions.
+- **AET P95 hit rate: improved** — 0.759 vs 0.753. Despite worse bias, the model classifies more samples correctly above the P95 threshold.
+
+**POLARIS AWC assessment:** The switch to root-zone AWC is a clear win for CWD (new best-ever NSE 0.929, RMSE 15.5mm) and PCK (near-best NSE 0.949), and improves PET. The AET extreme regression (-19.2mm vs -16.3mm) is the trade-off. The lower AWC values create a more drought-sensitive SWS that better reflects physical reality but may overcorrect: the model now sees "drought stress" more frequently and learns to suppress AET more broadly, including during genuine high-AET events.
+
+**Key insight:** v17 demonstrates that the AWC source fundamentally shapes the SWS-to-AET pathway. POLARIS root-zone AWC (~300-500mm) produces a much more responsive SWS signal than BCMv8 full-column AWC (~500-2000mm), which was essentially a "always moist" buffer. This responsiveness improves CWD prediction dramatically (the SWS drought signal directly informs the PET-AET-CWD cascade) but creates an AET extreme penalty — the model leans too heavily on the "currently dry" SWS signal and underestimates AET during hot events where stomatal conductance may still be high despite depleted soil water (e.g., deep-rooted vegetation accessing water below the 100cm root zone). The v18 tuning sweep will test whether adjusting extreme_weight (0.1) or extreme_threshold (P85) can recover AET tail performance without losing v17's CWD gains.
+
+**Remaining gaps for operational wildfire use**
+
+- **Temporal resolution.** Monthly CWD smooths over intra-month drying events that drive ignition risk. Fire weather operates on daily-to-weekly scales — a single week of hot, dry, windy conditions can bring vegetation from marginal to critical fire danger regardless of monthly averages. A statistical downscaling step from monthly to daily CWD using PRISM daily tmax and VPD as covariates would bridge this gap without requiring a full daily BCM emulator.
+
+- **Fire season evaluation.** Current metrics average over all 12 months, which dilutes the signal from June-November when fire risk is concentrated. A fire-season-only evaluation would more accurately reflect operational accuracy and would likely show larger improvements in extreme bias metrics since summer is where AET and CWD extremes cluster. The persistent PCK pbias (~10% in v16) matters less operationally if it is driven by winter snowpack errors rather than summer snow-free conditions.
+
+- **Spatial validation against fire perimeters.** Model accuracy against BCMv8 targets does not guarantee the CWD patterns predict where fires actually occur. Comparing predicted CWD anomalies against MTBS and FRAP fire perimeters — particularly asking whether above-normal CWD precedes fire occurrence in the same pixel — would provide ecologically meaningful validation beyond emulator fidelity metrics.
+
+- **Out-of-sample climate validation.** The test period is currently October 2019 through September 2020 — one year. California's most severe drought and fire conditions occurred in 2020-2022 and were outside the training distribution in terms of cumulative water deficit magnitude. Extending evaluation to 2020-2025 would test whether the emulator generalizes to conditions more extreme than anything in its training data, which is the primary value proposition for CMIP6 forward projections.
+
+- **PCK bias in snow-dominated ecoregions.** The persistent PCK pbias (~10-20% across v12-v16) is a known casualty of the 2x AET/CWD loss weighting. Sierra Nevada and Cascade pixels with significant snowpack feed PCK errors into pck_prev as an autoregressive input, compounding over multi-year forward simulations. For CMIP6 projections where winter precipitation phase shifts are a primary signal of interest, this bias needs to be explicitly addressed — either through a separate PCK-focused loss term or by routing pck_prev through a corrected prediction rather than the biased one.
+
+- **Ecoregion-specific failure modes.** The NSE-by-ecoregion table consistently shows near-zero or negative AET NSE in arid regions (Mojave, Sonoran, Basin and Range) despite strong performance elsewhere. These regions have near-zero AET that is dominated by rare precipitation pulses — a different dynamical regime than the Mediterranean and montane pixels that dominate the training signal. Separate evaluation thresholds or region-specific fine-tuning would be needed before operational deployment across all of California.
+
 
 ## Version Progression Summary
 
@@ -597,10 +634,19 @@ v15 + AWC static + extreme penalty AET NSE 0.853, CWD NSE 0.913  ★ BEST AET P9
  |                                       Global AET flat (NSE 0.853, KGE 0.831), CWD flat (NSE 0.913)
  |                                       PCK pbias 19.0% — extreme penalty adds gradient competition
 v16 aet_initial 2.0→1.5 ........... AET NSE 0.848, CWD NSE 0.912  ★ PCK RECOVERY (pbias 9.7%)
-                                         aet_initial=1.5, cwd=2.0, extreme_weight=0.05
-                                         PCK pbias 9.7% (from 19.0%), PCK KGE 0.868 (from 0.757)
-                                         AET P95 bias -16.3mm (maintained — extreme penalty does heavy lifting)
-                                         PET pbias -0.5% (improved from -1.1%)
-                                         AET global: NSE 0.848 (slight regression from 0.853)
-                                         Key finding: base AET weight ≠ tail performance; extreme penalty is the mechanism
+ |                                       aet_initial=1.5, cwd=2.0, extreme_weight=0.05
+ |                                       PCK pbias 9.7% (from 19.0%), PCK KGE 0.868 (from 0.757)
+ |                                       AET P95 bias -16.3mm (maintained — extreme penalty does heavy lifting)
+ |                                       PET pbias -0.5% (improved from -1.1%)
+ |                                       AET global: NSE 0.848 (slight regression from 0.853)
+ |                                       Key finding: base AET weight ≠ tail performance; extreme penalty is the mechanism
+v17 POLARIS root-zone AWC ......... AET NSE 0.851, CWD NSE 0.929  ★ NEW BEST CWD (NSE, RMSE, KGE)
+                                         POLARIS 0-100cm AWC for SWS (~300-500mm vs BCMv8 ~500-2000mm)
+                                         Dropped awc_total static (14 static); aet=1.5, extreme_weight=0.05
+                                         CWD NSE 0.929 (new best, beating v13's 0.916), RMSE 15.5 (new best)
+                                         CWD KGE 0.931 (new best), CWD pbias -2.7%
+                                         PCK NSE 0.949, pbias 6.8% (best among weighted-loss runs)
+                                         PET NSE 0.879 (best among weighted-loss runs)
+                                         AET P95 bias -19.2mm (regressed from v16's -16.3mm)
+                                         Trade-off: more responsive SWS helps CWD but overcorrects AET extremes
 ```

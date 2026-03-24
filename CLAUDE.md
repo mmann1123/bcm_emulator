@@ -39,7 +39,7 @@ No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and
 prepare_data.py (downloads + zarr build)
     → data/bcm_dataset.zarr
         /inputs/dynamic   (T, 15, H, W)  - monthly climate + derived features
-        /inputs/static    (15, H, W)     - terrain + soil + vegetation
+        /inputs/static    (14, H, W)     - terrain + soil + vegetation (no awc_total; FVEG at ch13)
         /targets/{pet,pck,aet,cwd}  (T, H, W)
         /norm/*           - per-channel z-score stats (zarr stores RAW values; norm applied on-the-fly by dataset)
 
@@ -55,9 +55,9 @@ evaluate.py → autoregressive inference (tf_ratio=0.0)
 ### Model (src/models/bcm_model.py)
 
 ```
-Input: (B, 28, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 36, T) → Backbone
-  28 = 14 dynamic (excl. KBDI) + 14 continuous static
-  36 = 28 + 8 FVEG embedding
+Input: (B, 27, T) + KBDI (B, 1, T) + Kv (B, 1, T)  → _prepend_fveg → (B, 35, T) → Backbone
+  27 = 14 dynamic (excl. KBDI) + 13 continuous static
+  35 = 27 + 8 FVEG embedding
 
 Stage 1: TCNBackbone - 5 causal dilated levels [64,128,128,256,256], dilations [1,2,4,8,16]
           Receptive field: 125 months. Output: (B, 256, T)
@@ -81,13 +81,13 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 **Dynamic (14 backbone + 1 KBDI routed to AET + 1 Kv routed to AET):** ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std | kbdi (AET-only, idx 10) | kv (AET-only, from BCM Table 6)
 
-- **sws** (v14+): Soil Water Storage from stress-modulated bucket model: `stress = min(SWS[t-1]/AWC, 1); AET_approx = PET*stress; SWS[t] = clamp(SWS[t-1] + PPT - AET_approx, 0, AWC)`. Linear stress prevents over-drainage in dry conditions (v13 used PPT-PET which gave 68% zeros). AWC from (FC-WP)×soil_depth. Now computed in `build_zarr_store()`.
+- **sws** (v14+, v17 uses POLARIS AWC): Soil Water Storage from stress-modulated bucket model: `stress = min(SWS[t-1]/AWC, 1); AET_approx = PET*stress; SWS[t] = clamp(SWS[t-1] + PPT - AET_approx, 0, AWC)`. Linear stress prevents over-drainage in dry conditions. AWC from POLARIS root-zone (0-100cm) `awc_bcm.tif` (~300-500mm), replacing BCMv8 full-column (FC-WP)×soil_depth (~500-2000mm) which understated drought stress. Now computed in `build_zarr_store()`.
 - **vpd_roll6_std, srad_roll6_std, tmax_roll3_std** (v13+): Rolling standard deviations capturing climate variability. Identified by `scripts/panel_extremes_analysis.py` as disproportionately important for AET/CWD extremes (up to 73× more important in tail vs overall). Now computed in `build_zarr_store()`.
 
-**Static (15):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, awc_total, fveg_class_id
-- Channels 0-13 are continuous (z-score normalized)
-- **awc_total** (v15+): Available Water Capacity = (FC - WP) × soil_depth × 1000 [mm]. Derived from existing static channels; provides explicit soil water holding capacity to the model.
-- Channel 14 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
+**Static (14):** elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity_index, field_capacity, wilting_point, SOM, windward_index, fveg_class_id
+- Channels 0-12 are continuous (z-score normalized)
+- awc_total was dropped in v17 (POLARIS AWC has ~400mm uniformly with minimal spatial contrast; FC and WP remain as separate channels)
+- Channel 13 (FVEG) is categorical (integer class ID, not normalized, fed through nn.Embedding)
 
 ### Dataset (src/data/dataset.py)
 
@@ -107,7 +107,7 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.
 
-Key sections: `paths` (data locations), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 14 dyn + 14 static + 8 fveg embed = 36; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
+Key sections: `paths` (data locations, including `awc_path` for POLARIS root-zone AWC), `grid` (EPSG:3310 reference), `temporal` (train/test split dates), `model.backbone.in_channels` (must match 14 dyn + 13 static + 8 fveg embed = 35; KBDI and Kv routed separately to AET head), `training` (epochs, LR, loss weights, teacher forcing).
 
 ## Loss Function
 
@@ -181,6 +181,6 @@ conda run -n deep_field python prepare_data.py --steps zarr
 - Channel 11: SWS (stress-modulated bucket model, v14+ formulation)
 - Channels 12-14: rolling std (vpd_roll6_std, srad_roll6_std, tmax_roll3_std)
 
-Result: `(T, 15, H, W)` dynamic + `(15, H, W)` static, `in_channels=36` in config.yaml
+Result: `(T, 15, H, W)` dynamic + `(14, H, W)` static, `in_channels=35` in config.yaml
 
 The standalone scripts `scripts/add_sws_channel.py` and `scripts/add_rolling_std_channels.py` are retained for patching existing zarr stores without a full rebuild.

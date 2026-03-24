@@ -193,6 +193,7 @@ def main():
             aridity_path=getattr(cfg.paths, "aridity_path", ""),
             field_capacity_path=getattr(cfg.paths, "field_capacity_path", ""),
             wilting_point_path=getattr(cfg.paths, "wilting_point_path", ""),
+            awc_path=getattr(cfg.paths, "awc_path", ""),
             bcm_profile=bcm_profile,
             time_range=(cfg.temporal.train_start, cfg.temporal.test_end),
             snow_threshold=cfg.data.snow_threshold_celsius,

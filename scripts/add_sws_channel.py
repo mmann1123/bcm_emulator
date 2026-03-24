@@ -10,9 +10,9 @@ This replaces the original PPT-PET formulation which drained too aggressively
 of pixel-months at zero.
 
 Uses:
-  - AWC derived from zarr static channels: (FC - WP) * soil_depth * 1000 [mm]
-    This is consistent with BCMv8's full soil column depth (mean ~2m),
-    whereas POLARIS AWC integrates only 0-100cm.
+  - AWC from POLARIS root-zone integration (0-100cm), loaded from awc_bcm.tif
+    via config.yaml paths.awc_path. This replaces BCMv8 full-column AWC
+    which used ~2m depth and understated drought stress.
   - BCMv8 PET targets from zarr (deterministic from climate forcing, not leakage)
   - PPT from zarr dynamic channel 0
 
@@ -49,35 +49,43 @@ SPINUP_YEARS = 3
 PPT_CHANNEL = 0    # dynamic channel index for ppt
 PET_TARGET = 0     # target index: pet=0, pck=1, aet=2, cwd=3
 
-# Static channel indices (from preprocessing.py ordering)
-FC_IDX = 9         # field_capacity
-WP_IDX = 10        # wilting_point
-SD_IDX = 7         # soil_depth
 
+def compute_awc_from_polaris(awc_path: str, bcm_profile: dict, valid_mask: np.ndarray) -> np.ndarray:
+    """Load POLARIS root-zone AWC (0-100cm) from awc_bcm.tif.
 
-def compute_awc_from_zarr(store, valid_mask: np.ndarray) -> np.ndarray:
-    """Compute AWC (mm) from zarr static channels: (FC - WP) × soil_depth × 1000.
-
-    The zarr stores raw (unnormalized) values for both static and dynamic channels.
-    Norm stats are stored separately for BCMPixelDataset to apply on-the-fly.
+    The raster is aligned to the BCM grid via reprojection if needed.
 
     Returns (H, W) array in mm, clipped to [0, inf].
     """
-    static = np.array(store["inputs/static"])  # (C_static, H, W) — raw values
+    import rasterio
+    from rasterio.warp import reproject, Resampling
 
-    fc = static[FC_IDX]    # field capacity, volumetric fraction
-    wp = static[WP_IDX]    # wilting point, volumetric fraction
-    sd = static[SD_IDX]    # soil depth, meters
+    h, w = bcm_profile["height"], bcm_profile["width"]
 
-    logger.info(f"Static channel stats (valid pixels):")
-    logger.info(f"  FC[{FC_IDX}]: mean={fc[valid_mask].mean():.4f}")
-    logger.info(f"  WP[{WP_IDX}]: mean={wp[valid_mask].mean():.4f}")
-    logger.info(f"  SD[{SD_IDX}]: mean={sd[valid_mask].mean():.2f}m")
+    with rasterio.open(awc_path) as src:
+        if (
+            src.crs == rasterio.CRS.from_string(str(bcm_profile["crs"]))
+            and src.shape == (h, w)
+        ):
+            awc = src.read(1).astype(np.float32)
+        else:
+            awc = np.full((h, w), np.nan, dtype=np.float32)
+            reproject(
+                source=rasterio.band(src, 1),
+                destination=awc,
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=bcm_profile["transform"],
+                dst_crs=bcm_profile["crs"],
+                resampling=Resampling.bilinear,
+            )
 
-    awc = np.maximum(0.0, (fc - wp)) * np.maximum(0.0, sd) * 1000.0  # mm
+    awc[awc == -9999.0] = 0.0
+    awc[np.isnan(awc)] = 0.0
+    awc = np.maximum(0.0, awc)
     awc[~valid_mask] = 0.0
 
-    logger.info(f"AWC (FC-WP)*depth*1000: min={awc[valid_mask].min():.1f}mm  "
+    logger.info(f"POLARIS AWC: min={awc[valid_mask].min():.1f}mm  "
                 f"max={awc[valid_mask].max():.1f}mm  "
                 f"mean={awc[valid_mask].mean():.1f}mm")
     return awc.astype(np.float32)
@@ -172,8 +180,16 @@ def main():
     # --- Valid mask ---
     valid_mask = np.array(store["meta/valid_mask"])  # (H, W) bool
 
-    # --- Compute AWC from zarr static channels ---
-    awc_mm = compute_awc_from_zarr(store, valid_mask)
+    # --- Load POLARIS root-zone AWC ---
+    awc_path_str = getattr(cfg.paths, "awc_path", "")
+    if not awc_path_str or not Path(awc_path_str).exists():
+        logger.error(f"AWC raster not found at {awc_path_str}. "
+                     "Set paths.awc_path in config.yaml.")
+        sys.exit(1)
+
+    from src.utils.io_helpers import get_bcm_reference_profile
+    bcm_profile = get_bcm_reference_profile(cfg.paths.bcm_dir)
+    awc_mm = compute_awc_from_polaris(awc_path_str, bcm_profile, valid_mask)
 
     # --- Load raw PPT from zarr (NOT normalized — zarr stores raw values) ---
     logger.info("Loading raw PPT from zarr (channel 0)...")

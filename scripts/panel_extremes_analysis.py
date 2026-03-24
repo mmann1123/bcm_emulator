@@ -81,7 +81,7 @@ def load_panel_from_zarr(zarr_path: str, n_pixels: int, seed: int) -> pd.DataFra
     static_names = [
         "elev", "topo_solar", "lat", "lon", "ksat", "sand", "clay",
         "soil_depth", "aridity_index", "field_capacity", "wilting_point",
-        "SOM", "windward_index", "awc_total", "fveg_class_id",
+        "SOM", "windward_index", "fveg_class_id",
     ]
 
     # Subsample valid pixels

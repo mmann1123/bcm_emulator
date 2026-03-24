@@ -14,6 +14,7 @@ paths:
   fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
   fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
   soil_dir: /home/mmann1123/extra_space/bcm_emulator/data/soil
+  awc_path: /home/mmann1123/extra_space/bcm_emulator/data/awc/awc_bcm.tif
   soil_depth_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_thck4_v8.tif
   aridity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_aridity_v8.tif
   field_capacity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp0010_v8.tif
@@ -51,7 +52,7 @@ data:
 # Model architecture
 model:
   backbone:
-    in_channels: 36  # 14 dynamic + 14 static + 8 fveg embedding (KBDI routed separately; SWS + 3 rolling std + awc_total static)
+    in_channels: 35  # 14 dynamic + 13 static + 8 fveg embedding (KBDI routed separately; SWS + 3 rolling std; awc_total dropped)
     channels: [64, 128, 128, 256, 256]
     kernel_size: 3
     dropout: 0.1

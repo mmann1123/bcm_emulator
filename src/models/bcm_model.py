@@ -20,8 +20,8 @@ class BCMEmulator(nn.Module):
     KBDI is excluded from the backbone and injected directly into the AET head
     to act as a drought-stress inhibitor without polluting PET/PCK encoding.
 
-    Input channels (23 continuous + 8 FVEG embed = 31 backbone):
-        Dynamic (10): ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd
+    Input channels (22 continuous + 8 FVEG embed = 30 backbone → in_channels=35 with SWS/rollstd):
+        Dynamic (14, excl KBDI): ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std
         Static (13): elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward
         FVEG embedding (8): from vegetation class ID lookup
     KBDI (1): passed separately to AET head only
@@ -90,7 +90,7 @@ class BCMEmulator(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Shape (B, C, T). Input features (10 dynamic + 14 static, no KBDI).
+            Shape (B, C, T). Input features (14 dynamic + 13 static, no KBDI).
         tf_ratio : float
             Fraction of timesteps using ground-truth for pck_prev/aet_prev.
             1.0 = all GT (teacher forcing), 0.0 = all predicted.

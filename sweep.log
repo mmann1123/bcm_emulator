@@ -1,0 +1,11 @@
+============================================================
+v17 → Sweep Pipeline
+Started: Tue Mar 24 12:59:44 PM EDT 2026
+============================================================
+
+=== Phase 1: Waiting for zarr build (prepare_data.py) to finish ===
+  Zarr build complete: /home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr
+  Finished at: Tue Mar 24 12:59:44 PM EDT 2026
+
+=== Phase 2: Training v17-polaris-awc ===
+  Started: Tue Mar 24 12:59:44 PM EDT 2026

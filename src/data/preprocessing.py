@@ -325,6 +325,7 @@ def build_zarr_store(
     aridity_path: str = "",
     field_capacity_path: str = "",
     wilting_point_path: str = "",
+    awc_path: str = "",
     bcm_profile: dict = None,
     time_range: Tuple[str, str] = ("1980-01", "2020-09"),
     snow_threshold: float = 0.0,
@@ -338,10 +339,11 @@ def build_zarr_store(
         - PRISM daily-derived: wet_days, ppt_intensity (reprojected to BCM grid)
         - BCM outputs: aet, cwd, pck (targets, on BCM grid)
         - Local: elevation, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index (static)
+        - POLARIS: root-zone AWC (0-100cm) for SWS bucket model
 
     Zarr structure:
         /inputs/dynamic    (T, 15, H, W)  - dynamic input channels (11 base + SWS + 3 rolling std)
-        /inputs/static     (14, H, W)     - static input channels
+        /inputs/static     (14, H, W)     - static input channels (no awc_total; FVEG at ch13)
         /targets/pet       (T, H, W)
         /targets/pck       (T, H, W)
         /targets/aet       (T, H, W)
@@ -371,8 +373,8 @@ def build_zarr_store(
         name="inputs/dynamic", shape=(T, 15, H, W), chunks=(12, 15, H, W), dtype="float32"
     )
 
-    # Static inputs: (15, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, awc_total, fveg_class_id
-    static = store.zeros(name="inputs/static", shape=(15, H, W), dtype="float32")
+    # Static inputs: (14, H, W) -- elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, fveg_class_id
+    static = store.zeros(name="inputs/static", shape=(14, H, W), dtype="float32")
 
     # Targets: (T, H, W)
     for var in ["pet", "pck", "aet", "cwd"]:
@@ -478,19 +480,7 @@ def build_zarr_store(
     windward = compute_windward_index(elev, valid_mask)
     static[12] = windward
 
-    # AWC total (derived from FC, WP, soil_depth) -- channel 13
-    logger.info("Computing AWC total: (FC - WP) × soil_depth × 1000...")
-    fc_data = static[9]   # field capacity
-    wp_data = static[10]  # wilting point
-    sd_data = static[7]   # soil depth (meters)
-    awc_total = np.maximum(0.0, fc_data - wp_data) * np.maximum(0.0, sd_data) * 1000.0  # mm
-    awc_total[~valid_mask] = 0.0
-    static[13] = awc_total
-    logger.info(f"AWC total: min={awc_total[valid_mask].min():.1f}mm  "
-                f"max={awc_total[valid_mask].max():.1f}mm  "
-                f"mean={awc_total[valid_mask].mean():.1f}mm")
-
-    # FVEG (CWHR vegetation class ID) -- channel 14 (categorical, must be last)
+    # FVEG (CWHR vegetation class ID) -- channel 13 (categorical, must be last)
     import json as _json
 
     fveg_dir_path = Path(fveg_dir) if fveg_dir else None
@@ -498,7 +488,7 @@ def build_zarr_store(
         logger.info("Loading FVEG partveg raster...")
         fveg_data = _read_bcm_grid_file(str(fveg_dir_path / "fveg_partveg.tif"))
         fveg_data[np.isnan(fveg_data)] = 0.0
-        static[14] = fveg_data
+        static[13] = fveg_data
 
         # Store FVEG metadata
         classmap_path = fveg_dir_path / "fveg_class_map.json"
@@ -510,7 +500,7 @@ def build_zarr_store(
             store.attrs["fveg_class_map"] = _json.dumps(fveg_meta["id_to_info"])
             logger.info(f"FVEG: {num_fveg_classes} classes stored")
     else:
-        logger.warning("FVEG data not found; channel 14 will be zeros")
+        logger.warning("FVEG data not found; channel 13 will be zeros")
 
     # ---- Dynamic inputs and targets (parallel) ----
     sb_dir = Path(sciencebase_dir)
@@ -569,16 +559,12 @@ def build_zarr_store(
 
     # --- Compute SWS (stress-modulated bucket model, v14+) ---
     logger.info("Computing SWS (stress-modulated bucket model)...")
-    static_arr = np.array(store["inputs/static"])
-    fc = static_arr[9]   # field capacity
-    wp = static_arr[10]  # wilting point
-    sd = static_arr[7]   # soil depth (meters)
-    awc_mm = np.maximum(0.0, fc - wp) * np.maximum(0.0, sd) * 1000.0  # mm
+    logger.info(f"Loading POLARIS root-zone AWC from {awc_path}...")
+    awc_mm = _read_and_align(str(awc_path), bcm_profile)
     awc_mm[~valid_mask] = 0.0
-    logger.info(f"AWC (FC-WP)*depth*1000: min={awc_mm[valid_mask].min():.1f}mm  "
+    logger.info(f"POLARIS AWC: min={awc_mm[valid_mask].min():.1f}mm  "
                 f"max={awc_mm[valid_mask].max():.1f}mm  "
                 f"mean={awc_mm[valid_mask].mean():.1f}mm")
-    del static_arr
 
     ppt_raw = np.array(store["inputs/dynamic"][:, 0, :, :])  # channel 0 = ppt
     pet_raw = np.array(store["targets/pet"])
@@ -700,19 +686,19 @@ def _compute_norm_stats(store: zarr.Group, valid_mask: np.ndarray) -> None:
     stds = np.sqrt(running_sq_sum / count - means**2)
     stds[stds < 1e-8] = 1.0
 
-    # Static channels: normalize channels 0-13 (continuous: elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index, awc_total)
-    # Channel 14 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
+    # Static channels: normalize channels 0-12 (continuous: elev, topo_solar, lat, lon, ksat, sand, clay, soil_depth, aridity, FC, WP, SOM, windward_index)
+    # Channel 13 (FVEG) gets identity (mean=0, std=1) — categorical, not z-scored
     static = np.array(store["inputs/static"])
-    n_static = static.shape[0]  # 15
+    n_static = static.shape[0]  # 14
     static_means = np.zeros(n_static, dtype=np.float64)
     static_stds = np.ones(n_static, dtype=np.float64)
-    for ch in range(min(14, n_static)):  # normalize continuous channels 0-13
+    for ch in range(min(13, n_static)):  # normalize continuous channels 0-12
         vals = static[ch][valid_mask]
         static_means[ch] = vals.mean()
         static_stds[ch] = vals.std()
         if static_stds[ch] < 1e-8:
             static_stds[ch] = 1.0
-    # Channel 14 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
+    # Channel 13 (FVEG): keep mean=0, std=1 (categorical, not z-scored)
 
     # Target stats
     target_names = ["pet", "pck", "aet", "cwd"]
