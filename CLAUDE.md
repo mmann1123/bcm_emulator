@@ -124,7 +124,7 @@ Total = Σ w_var * Huber(var) + extreme_weight * MSE_extreme(extreme_vars)
 
 ## Current Status
 
-Best AET extremes: **v15-awc-extreme** (AET P95 bias -16.4mm — best among valid runs, beating v12's -16.6mm). Best AET KGE: **v14-sws-stress** / **v15-awc-extreme** (0.831 tied). Best CWD: **v13-sws-rollstd** (CWD NSE 0.916, CWD RMSE 16.9 — both best-ever). Best overall: **v6-huber** (PET NSE 0.927, PCK NSE 0.950). v15 adds AWC static channel (15 static) and mild extreme penalty (weight=0.05), achieving best-ever AET P95 bias while maintaining v12-class global AET. See `docs/model_comparison.md` for full run-by-run analysis.
+Best AET extremes: **v16-aet1.5-extreme** (AET P95 bias -16.3mm — best among valid runs). Best AET KGE: **v14-sws-stress** / **v15-awc-extreme** (0.831 tied). Best CWD: **v13-sws-rollstd** (CWD NSE 0.916, CWD RMSE 16.9 — both best-ever). Best overall: **v6-huber** (PET NSE 0.927, PCK NSE 0.950). Best balanced: **v16-aet1.5-extreme** (PCK pbias 9.7% recovered from v15's 19.0% while maintaining AET P95 bias -16.3mm). Key finding: extreme_weight=0.05 drives AET tail accuracy, not base AET loss weight — reducing aet_initial from 2.0 to 1.5 barely affected extremes but dramatically recovered PCK. See `docs/model_comparison.md` for full run-by-run analysis.
 
 **Important:** The zarr stores **raw (unnormalized) values** for all channels. Normalization stats in `/norm/*` are applied on-the-fly by `BCMPixelDataset`. When adding derived channels via scripts (not `prepare_data.py --steps zarr`), write raw values and append norm stats — do NOT z-normalize before writing.
 

@@ -29,6 +29,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v13-sws-rollstd | 2026-03-23 | MSE | v12 arch + 4 new dynamic channels: SWS bucket model, vpd_roll6_std, srad_roll6_std, tmax_roll3_std |
 | v14-sws-stress | 2026-03-23 | MSE | v13 with fixed SWS: stress-modulated drainage (linear stress=SWS/AWC, 13.8% zeros vs 68%) |
 | v15-awc-extreme | 2026-03-23 | MSE+Extreme | v14 + awc_total static channel (15 static), extreme_weight=0.05, extreme_asym=1.5 |
+| v16-aet1.5-extreme | 2026-03-23 | MSE+Extreme | v15 with aet_initial=1.5 (from 2.0), cwd=2.0, extreme_weight=0.05 — rebalanced AET/PCK trade-off |
 
 ## Global Performance Metrics
 
@@ -57,6 +58,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v13-sws-rollstd | 0.870 | 0.907 | 0.846 | **0.916** |
 | v14-sws-stress | 0.866 | 0.921 | 0.854 | 0.914 |
 | v15-awc-extreme | 0.857 | 0.916 | 0.853 | 0.913 |
+| v16-aet1.5-extreme | 0.861 | 0.930 | 0.848 | 0.912 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -83,6 +85,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v13-sws-rollstd | 0.866 | 0.753 | 0.805 | 0.920 |
 | v14-sws-stress | 0.860 | 0.806 | **0.831** | 0.930 |
 | v15-awc-extreme | 0.853 | 0.757 | **0.831** | 0.924 |
+| v16-aet1.5-extreme | 0.859 | 0.868 | 0.816 | 0.920 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -109,6 +112,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v13-sws-rollstd | 21.7 | 16.0 | 11.8 | **16.9** |
 | v14-sws-stress | 22.1 | 14.8 | 11.5 | 17.1 |
 | v15-awc-extreme | 22.8 | 15.2 | 11.5 | 17.1 |
+| v16-aet1.5-extreme | 22.4 | 13.8 | 11.7 | 17.2 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -135,6 +139,7 @@ This document compares all model versions (v1 through v7) with an emphasis on me
 | v13-sws-rollstd | -1.8 | 19.0 | 2.7 | -2.2 |
 | v14-sws-stress | -1.3 | 13.6 | 4.3 | -2.4 |
 | v15-awc-extreme | -1.1 | 19.0 | 6.6 | -3.1 |
+| v16-aet1.5-extreme | -0.5 | 9.7 | 9.5 | -3.7 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -160,6 +165,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v13-sws-rollstd | 28.2 | -20.6 | 0.746 |
 | v14-sws-stress | 26.6 | -17.9 | 0.742 |
 | v15-awc-extreme | 25.2 | -16.4 | 0.755 |
+| v16-aet1.5-extreme | 25.7 | -16.3 | 0.753 |
 
 ### AET Extremes (P99)
 
@@ -181,6 +187,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v13-sws-rollstd | 34.1 | -29.2 | 0.591 |
 | v14-sws-stress | 31.9 | -26.4 | 0.542 |
 | v15-awc-extreme | 29.9 | -24.7 | 0.550 |
+| v16-aet1.5-extreme | 30.2 | -24.9 | 0.544 |
 
 ### CWD Extremes (P95)
 
@@ -202,6 +209,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v13-sws-rollstd | 10.2 | -3.9 | 0.784 |
 | v14-sws-stress | 9.0 | -2.0 | 0.786 |
 | v15-awc-extreme | 10.1 | -3.5 | 0.768 |
+| v16-aet1.5-extreme | 9.6 | -3.8 | 0.774 |
 
 ### CWD Extremes (P99)
 
@@ -223,6 +231,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v13-sws-rollstd | 7.2 | -3.8 | 0.661 |
 | v14-sws-stress | 6.2 | -2.1 | 0.644 |
 | v15-awc-extreme | 7.1 | -3.4 | 0.662 |
+| v16-aet1.5-extreme | 6.6 | -3.6 | 0.672 |
 
 ## Analysis for Wildfire Modeling
 
@@ -485,6 +494,26 @@ v15 adds `awc_total = (FC - WP) × soil_depth × 1000` as a new static channel (
 
 **Key insight:** The combination of 15 dynamic channels (with fixed SWS), AWC static channel, and mild extreme penalty (0.05) produces the best-ever AET P95 bias (-16.4mm) while maintaining v12-class global AET accuracy. The extreme penalty was the key ingredient — it addresses the AET tail underprediction that loss weights alone couldn't fully resolve. Future directions: (a) try `extreme_weight=0.1` to push AET extremes further, (b) add PCK to `extreme_vars` to address the persistent PCK pbias casualty, (c) explore intermediate AET weights (1.5) to balance PCK recovery.
 
+### v16-aet1.5-extreme: reduced AET weight to rebalance PCK
+
+v16 reduces `aet_initial` from 2.0 to 1.5 while keeping `cwd_initial=2.0`, `extreme_weight=0.05`, and `extreme_asym=1.5`. The hypothesis: v12-v15's PCK degradation (pbias 13-20%) is caused by excessive AET gradient dominance; a milder AET weight should recover PCK without losing the AET extreme gains from the extreme penalty. Best epoch 80/100, best val_loss 0.555.
+
+**Results vs v15-awc-extreme (aet=2.0, same extreme penalty):**
+
+- **PCK: dramatic recovery** — pbias 9.7% vs 19.0% (+9.3pp better), KGE 0.868 vs 0.757, NSE 0.930 vs 0.916, RMSE 13.8 vs 15.2. Reducing AET weight from 2.0 to 1.5 freed gradient attention for PCK. This is the best PCK performance since v8-soil-physics (pbias 4.2%) among runs with elevated AET/CWD weights.
+- **PET: improved** — pbias -0.5% vs -1.1% (closer to zero), NSE 0.861 vs 0.857. Less AET gradient competition benefits PET too.
+- **AET P95 bias: slightly improved** — -16.3mm vs -16.4mm. The extreme penalty (weight=0.05) maintains AET tail performance even with reduced AET base weight. This confirms the extreme penalty is the key mechanism for AET extremes, not the base loss weight.
+- **AET global: slight regression** — NSE 0.848 vs 0.853, pbias 9.5% vs 6.6%. The lower AET weight allows slightly more AET overprediction.
+- **CWD: flat** — NSE 0.912 vs 0.913, RMSE 17.2 vs 17.1. CWD maintained its cwd=2.0 weight, so performance is stable.
+
+**Results vs v12-stress-frac-aet2x (same arch, aet=2.0, no extreme penalty):**
+
+- **PCK: dramatically better** — pbias 9.7% vs 20.7%, KGE 0.868 vs 0.745. The lower AET weight + extreme penalty combination is clearly superior to brute-force AET weighting.
+- **AET P95 bias: improved** — -16.3mm vs -16.6mm. Even with lower AET base weight, the extreme penalty delivers better tail performance.
+- **AET global: slightly worse** — NSE 0.848 vs 0.856. The trade-off for PCK recovery.
+
+**Key insight:** The aet_initial=1.5 experiment reveals that the extreme penalty (`extreme_weight=0.05`) is doing the heavy lifting for AET tail accuracy, not the base AET loss weight. Reducing `aet_initial` from 2.0 to 1.5 barely affected AET P95 bias (-16.3mm vs -16.4mm) but dramatically recovered PCK (pbias 9.7% vs 19.0%). This suggests the optimal configuration is moderate base weights (aet=1.5) combined with targeted extreme penalties — the base weights handle the bulk of the distribution while the extreme penalty handles the tails. Future directions: (a) try aet_initial=1.0 (uniform weights) with extreme_weight=0.05 to test if even lower AET weight maintains extreme performance, (b) increase extreme_weight to 0.1 to push AET P95 bias further, (c) add PCK to extreme_vars to address the remaining 9.7% pbias.
+
 ### Remaining gaps for operational wildfire use
 
 1. **Temporal resolution:** Monthly CWD smooths over intra-month drying events. Fire weather operates on daily-to-weekly scales. A downscaling step or daily BCM target would be needed.
@@ -562,9 +591,16 @@ v14 Fixed SWS (stress-modulated) . AET NSE 0.854, CWD NSE 0.914  ★ NEW BEST AE
  |                                       PCK pbias 13.6% (recovered from v13's 19.0%)
  |                                       Best epoch 91/100 — more stable training with informative SWS
 v15 + AWC static + extreme penalty AET NSE 0.853, CWD NSE 0.913  ★ BEST AET P95 BIAS (valid runs)
-                                         awc_total static channel (15 static), extreme_weight=0.05
-                                         AET P95 bias -16.4mm (beats v12's -16.6mm — new best among valid runs)
-                                         AET P99 bias -24.7mm (improved from v14's -26.4mm)
-                                         Global AET flat (NSE 0.853, KGE 0.831), CWD flat (NSE 0.913)
-                                         PCK pbias 19.0% — extreme penalty adds gradient competition
+ |                                       awc_total static channel (15 static), extreme_weight=0.05
+ |                                       AET P95 bias -16.4mm (beats v12's -16.6mm — new best among valid runs)
+ |                                       AET P99 bias -24.7mm (improved from v14's -26.4mm)
+ |                                       Global AET flat (NSE 0.853, KGE 0.831), CWD flat (NSE 0.913)
+ |                                       PCK pbias 19.0% — extreme penalty adds gradient competition
+v16 aet_initial 2.0→1.5 ........... AET NSE 0.848, CWD NSE 0.912  ★ PCK RECOVERY (pbias 9.7%)
+                                         aet_initial=1.5, cwd=2.0, extreme_weight=0.05
+                                         PCK pbias 9.7% (from 19.0%), PCK KGE 0.868 (from 0.757)
+                                         AET P95 bias -16.3mm (maintained — extreme penalty does heavy lifting)
+                                         PET pbias -0.5% (improved from -1.1%)
+                                         AET global: NSE 0.848 (slight regression from 0.853)
+                                         Key finding: base AET weight ≠ tail performance; extreme penalty is the mechanism
 ```
