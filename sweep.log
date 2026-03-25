@@ -1,11 +1,19 @@
-============================================================
-v17 → Sweep Pipeline
-Started: Tue Mar 24 12:59:44 PM EDT 2026
-============================================================
+=== Backing up v17 baseline config ===
+=== BCM Emulator Tuning Sweep ===
+Baseline config: config_v17_baseline.yaml
+Group: all
 
-=== Phase 1: Waiting for zarr build (prepare_data.py) to finish ===
-  Zarr build complete: /home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr
-  Finished at: Tue Mar 24 12:59:44 PM EDT 2026
 
-=== Phase 2: Training v17-polaris-awc ===
-  Started: Tue Mar 24 12:59:44 PM EDT 2026
+############################################################
+GROUP: Loss Weights
+############################################################
+
+============================================================
+STARTING: v18-uniform-extreme
+NOTES:    Uniform base weights (aet=1.0, cwd=1.0) + extreme_weight=0.05. Tests whether extreme penalty alone maintains tail performance without any AET upweighting.
+============================================================
+--- Restoring v17 baseline config ---
+  patched training.loss_weights.aet_initial: 1.5 → 1.0
+
+  patched training.loss_weights.cwd_initial: 2.0 → 1.0
+

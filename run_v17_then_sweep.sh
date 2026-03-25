@@ -49,17 +49,20 @@ echo "  Finished at: $(date)"
 # ── Phase 2: Train v17 ────────────────────────────────────────────────────────
 echo ""
 echo "=== Phase 2: Training ${RUN_ID} ==="
-echo "  Started: $(date)"
 
-${PYTHON} train.py --run-id "${RUN_ID}" --notes "${NOTES}"
+if [ -d "snapshots/${RUN_ID}" ]; then
+    echo "  Skipping — snapshot already exists for ${RUN_ID}"
+else
+    echo "  Started: $(date)"
+    ${PYTHON} train.py --run-id "${RUN_ID}" --notes "${NOTES}"
 
-TRAIN_EXIT=$?
-if [ ${TRAIN_EXIT} -ne 0 ]; then
-    echo "ERROR: Training failed with exit code ${TRAIN_EXIT}"
-    exit 1
+    TRAIN_EXIT=$?
+    if [ ${TRAIN_EXIT} -ne 0 ]; then
+        echo "ERROR: Training failed with exit code ${TRAIN_EXIT}"
+        exit 1
+    fi
+    echo "  Training complete: $(date)"
 fi
-
-echo "  Training complete: $(date)"
 
 # ── Phase 3: Evaluate v17 ─────────────────────────────────────────────────────
 echo ""

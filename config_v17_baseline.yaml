@@ -86,8 +86,8 @@ training:
   loss_weights:
     pet_initial: 1.0
     pck_initial: 1.0
-    aet_initial: 1.0
-    cwd_initial: 1.0
+    aet_initial: 1.5
+    cwd_initial: 2.0
     pet_decay: 0.99
     pet_floor: 0.5
     huber_delta: 1.35   # MSE for errors < 1.35σ, MAE for errors > 1.35σ
