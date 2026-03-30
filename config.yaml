@@ -57,7 +57,7 @@ model:
     kernel_size: 3
     dropout: 0.1
   aet_backbone:
-    channels: [32, 64, 128]
+    channels: [32, 64, 128, 128]
     kernel_size: 3
     dropout: 0.1
     dyn_channels: [0, 1, 2, 5, 9, 10, 11, 12, 13]  # ppt, tmin, tmax, srad, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std

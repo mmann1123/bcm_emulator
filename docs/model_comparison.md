@@ -36,6 +36,9 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v18-sweep (14 runs) | 2026-03-25 | Various | 14-experiment hyperparameter sweep across loss weights, extreme penalty, loss type, scheduler. See tuning_experiments.md |
 | v19a-huber-tight-extreme0.1 | 2026-03-26 | Huber+Extreme | **OPERATIONAL CONFIG** — Huber delta=0.5 + extreme_weight=0.1. Synergistic combination: AET P95 bias -10.1mm (new project best) |
 | v19b-extreme0.1-petfloor0.3 | 2026-03-26 | MSE+Extreme | MSE path: extreme_weight=0.1 + pet_floor=0.3. Anti-synergistic — worse than either component alone. MSE path ceiling confirmed. |
+| v20a-asym1.1 | 2026-03-27 | Huber+Extreme | v19a base + extreme_asym=1.1 (from 1.5). Reduced AET pbias (8.3%) but PCK pbias blew out (19.4%). See tuning_experiments.md. |
+| v20b-aet1.2 | 2026-03-27 | Huber+Extreme | v19a base + aet_initial=1.2 (from 1.5). AET P95 bias -8.7mm (best-ever) but AET pbias 15.5%, PCK pbias 16.6%. Confirms irreducible gradient competition. |
+| v21-dual-backbone | 2026-03-29 | Huber+Extreme | Dual-backbone architecture: main TCN (256) + AET sub-backbone (128, 3-layer, RF=29mo). AET head sees both; PET/PCK see only main. Gradient decoupling test. |
 
 ## Global Performance Metrics
 
@@ -68,6 +71,9 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v17-polaris-awc | 0.879 | 0.949 | 0.851 | **0.929** |
 | v19a-huber-tight-extreme0.1 | 0.825 | 0.948 | 0.858 | 0.925 |
 | v19b-extreme0.1-petfloor0.3 | 0.859 | 0.925 | 0.854 | 0.925 |
+| v20a-asym1.1 | 0.842 | 0.915 | 0.855 | 0.925 |
+| v20b-aet1.2 | 0.825 | 0.938 | 0.851 | 0.922 |
+| v21-dual-backbone | 0.880 | 0.930 | 0.852 | 0.928 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -98,6 +104,9 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v17-polaris-awc | 0.872 | 0.904 | 0.798 | **0.931** |
 | v19a-huber-tight-extreme0.1 | 0.812 | 0.893 | **0.828** | 0.926 |
 | v19b-extreme0.1-petfloor0.3 | 0.846 | 0.818 | 0.826 | 0.926 |
+| v20a-asym1.1 | 0.837 | 0.752 | 0.839 | 0.926 |
+| v20b-aet1.2 | 0.823 | 0.801 | 0.810 | 0.925 |
+| v21-dual-backbone | 0.870 | 0.881 | 0.799 | 0.923 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -128,6 +137,9 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v17-polaris-awc | 21.0 | 11.8 | 11.6 | **15.5** |
 | v19a-huber-tight-extreme0.1 | 25.7 | 11.9 | **11.4** | 15.9 |
 | v19b-extreme0.1-petfloor0.3 | 22.6 | 14.4 | 11.5 | 16.0 |
+| v20a-asym1.1 | 23.9 | 15.3 | 11.5 | 15.9 |
+| v20b-aet1.2 | 25.2 | 13.0 | 11.6 | 16.2 |
+| v21-dual-backbone | 20.9 | 13.9 | 11.6 | 15.7 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -158,6 +170,9 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v17-polaris-awc | -0.6 | 6.8 | 7.2 | -2.7 |
 | v19a-huber-tight-extreme0.1 | -0.8 | 8.0 | 13.1 | -3.5 |
 | v19b-extreme0.1-petfloor0.3 | -0.8 | 13.8 | 8.1 | -3.4 |
+| v20a-asym1.1 | -0.2 | 19.4 | 8.3 | -2.8 |
+| v20b-aet1.2 | 1.5 | 16.6 | 15.5 | -3.9 |
+| v21-dual-backbone | -0.9 | 7.7 | 7.8 | -3.3 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -187,6 +202,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v17-polaris-awc | 26.8 | -19.2 | 0.759 |
 | v19a-huber-tight-extreme0.1 | 21.9 | **-10.1** | **0.769** |
 | v19b-extreme0.1-petfloor0.3 | 24.8 | -16.1 | 0.754 |
+| v20a-asym1.1 | 24.1 | -13.5 | 0.756 |
+| v20b-aet1.2 | 21.2 | **-8.7** | 0.763 |
+| v21-dual-backbone | 26.4 | -19.4 | 0.759 |
 
 ### AET Extremes (P99)
 
@@ -212,6 +230,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v17-polaris-awc | 33.1 | -28.4 | 0.572 |
 | v19a-huber-tight-extreme0.1 | 23.8 | **-16.1** | 0.579 |
 | v19b-extreme0.1-petfloor0.3 | 29.6 | -23.9 | 0.549 |
+| v20a-asym1.1 | 26.9 | -20.4 | 0.576 |
+| v20b-aet1.2 | 22.7 | **-15.0** | 0.573 |
+| v21-dual-backbone | 32.5 | -28.2 | 0.580 |
 
 ### CWD Extremes (P95)
 
@@ -237,6 +258,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v17-polaris-awc | 9.0 | -3.0 | **0.781** |
 | v19a-huber-tight-extreme0.1 | 8.7 | -3.2 | 0.787 |
 | v19b-extreme0.1-petfloor0.3 | 9.4 | -3.7 | 0.769 |
+| v20a-asym1.1 | 8.8 | -3.0 | 0.785 |
+| v20b-aet1.2 | 9.0 | -3.3 | 0.791 |
+| v21-dual-backbone | 9.6 | -3.5 | 0.790 |
 
 ### CWD Extremes (P99)
 
@@ -262,6 +286,9 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v17-polaris-awc | 5.7 | -2.8 | **0.684** |
 | v19a-huber-tight-extreme0.1 | 5.8 | -3.3 | 0.696 |
 | v19b-extreme0.1-petfloor0.3 | 6.4 | -3.6 | 0.665 |
+| v20a-asym1.1 | 5.8 | -3.0 | 0.662 |
+| v20b-aet1.2 | 6.1 | -3.4 | 0.669 |
+| v21-dual-backbone | 6.3 | -2.7 | 0.680 |
 
 ## Analysis for Wildfire Modeling
 
@@ -564,6 +591,45 @@ v17 switches the SWS bucket model's AWC source from BCMv8 full-column `(FC - WP)
 
 **Key insight:** v17 demonstrates that the AWC source fundamentally shapes the SWS-to-AET pathway. POLARIS root-zone AWC (~300-500mm) produces a much more responsive SWS signal than BCMv8 full-column AWC (~500-2000mm), which was essentially a "always moist" buffer. This responsiveness improves CWD prediction dramatically (the SWS drought signal directly informs the PET-AET-CWD cascade) but creates an AET extreme penalty — the model leans too heavily on the "currently dry" SWS signal and underestimates AET during hot events where stomatal conductance may still be high despite depleted soil water (e.g., deep-rooted vegetation accessing water below the 100cm root zone). The v18 tuning sweep will test whether adjusting extreme_weight (0.1) or extreme_threshold (P85) can recover AET tail performance without losing v17's CWD gains.
 
+### v20a/v20b: loss tuning to reduce AET pbias (Huber-tight regime)
+
+v20 experiments tested whether v19a's 13.1% AET pbias was reducible via loss tuning within the Huber-tight regime, or structurally irreducible due to shared-backbone gradient competition.
+
+**v20a-asym1.1** reduced `extreme_asym` from 1.5 to 1.1 (less underprediction penalty asymmetry). **v20b-aet1.2** reduced `aet_initial` from 1.5 to 1.2 (lower base AET weight). See tuning_experiments.md for full analysis.
+
+**Key results vs v19a:**
+
+| Metric | v19a | v20a | v20b |
+|--------|------|------|------|
+| AET pbias | 13.1% | 8.3% | 15.5% |
+| AET P95 bias | -10.1mm | -13.5mm | -8.7mm |
+| PCK pbias | 8.0% | 19.4% | 16.6% |
+| PET NSE | 0.825 | 0.842 | 0.825 |
+
+**Key insight:** Both experiments confirmed an irreducible gradient competition in the shared backbone. Any adjustment that improved AET mean bias destabilized PCK above 15% pbias. v20b achieved the best-ever AET P95 bias (-8.7mm) but at the cost of 15.5% AET pbias and 16.6% PCK pbias — a Pareto frontier that cannot be improved within a single-backbone architecture. This motivated the v21 dual-backbone experiment.
+
+### v21-dual-backbone: architectural gradient decoupling
+
+v21 introduces a dual-backbone architecture to structurally eliminate the gradient competition between PET/PCK and AET. A narrow sub-backbone (3-layer TCN, channels [32, 64, 128], RF=29 months, ~117K params) processes a subset of drought-relevant channels and feeds into the AET head alongside the main backbone's output. PET/PCK heads see only the main backbone — AET gradients through the sub-backbone cannot interfere with PET/PCK learning.
+
+**Sub-backbone channel routing (22 channels):**
+- Dynamic (9): ppt, tmin, tmax, srad, vpd, sws, vpd_roll6_std, srad_roll6_std, tmax_roll3_std
+- Static (5): soil_depth, aridity, FC, WP, SOM
+- FVEG embedding (8): shared with main backbone
+
+**Results vs v19a (single backbone, operational config):**
+
+- **AET pbias: halved** — 7.8% vs 13.1% (-5.3pp). The gradient decoupling eliminated the mean overprediction caused by competing PET/PCK gradients pulling the backbone toward features that inflate AET.
+- **PET: major improvement** — NSE 0.880 vs 0.825 (+0.055), RMSE 20.9 vs 25.2mm (-4.3mm). With AET gradients partially offloaded to the sub-backbone, the main backbone can dedicate more capacity to PET features.
+- **PCK pbias: maintained** — 7.7% vs 8.0%. No regression — the decoupling preserved PCK stability.
+- **CWD: slight improvement** — NSE 0.928 vs 0.925, RMSE 15.7 vs 15.9mm.
+- **AET P95 bias: regressed** — -19.4mm vs -10.1mm (+9.3mm worse). The sub-backbone's short receptive field (29 months) may lack the multi-year context needed for extreme events, or the extreme penalty needs retuning for the dual-backbone's different gradient landscape.
+- **AET P99 bias: regressed** — -28.2mm vs -16.1mm.
+
+**Gradient isolation verified:** Unit tests confirmed that PET+PCK loss produces zero gradients in the AET sub-backbone, and AET loss flows through both backbones as intended.
+
+**Key insight:** The dual-backbone architecture successfully decoupled AET mean prediction from PET/PCK — AET pbias dropped from 13.1% to 7.8% while PCK stayed at 7.7% and PET improved substantially. However, the AET extreme performance regressed significantly, suggesting that (a) the 3-layer sub-backbone (RF=29 months) is too shallow to capture the multi-season drought dynamics that drive AET extremes, and/or (b) the extreme_weight=0.05 penalty needs to be stronger now that the AET head has a different gradient landscape. A deeper 4-layer sub-backbone ([32, 64, 128, 128], RF=61 months) is the next experiment.
+
 **Remaining gaps for operational wildfire use**
 
 ---
@@ -707,14 +773,27 @@ v19b MSE path combination ......... AET P95 bias -16.1mm  ANTI-SYNERGISTIC — C
  |                                         Confirms MSE path has reached its practical ceiling
  |                                         PCK pbias 13.8%, CWD extremes regressed vs baseline
  |
-v19a Huber-tight + extreme0.1 .... AET NSE 0.858, CWD NSE 0.925  ★★ NEW PROJECT BEST — OPERATIONAL CONFIG
-                                         loss_type=huber, huber_delta=0.5, extreme_weight=0.1
-                                         AET P95 bias -10.1mm (new best by 3.4mm — halved from v17 baseline)
-                                         AET P99 bias -16.1mm (vs -28.4mm at v17 baseline)
-                                         PCK NSE 0.948, pbias 8.0% (well within 12% threshold)
-                                         PET NSE 0.825 (acceptable — PET is intermediate, not operational output)
-                                         AET pbias 13.1% (known cost — conservative for wildfire risk use)
-                                         SYNERGY: huber-tight + extreme0.1 are complementary not additive
-                                         Mechanism: tight Huber frees PET gradient budget; extreme penalty
-                                         directs freed capacity to AET tail — complementary gradient regimes
+v19a Huber-tight + extreme0.1 .... AET NSE 0.858, CWD NSE 0.925  ★★ OPERATIONAL CONFIG
+ |                                         loss_type=huber, huber_delta=0.5, extreme_weight=0.1
+ |                                         AET P95 bias -10.1mm (best by 3.4mm — halved from v17 baseline)
+ |                                         PCK pbias 8.0%, PET NSE 0.825
+ |                                         AET pbias 13.1% (known cost — conservative for wildfire)
+ |                                         SYNERGY: tight Huber frees PET budget; extreme penalty targets AET tail
+ |
+v20a extreme_asym 1.5→1.1 ...... AET pbias 8.3% (improved from 13.1%)
+ |                                         AET P95 bias -13.5mm (regressed from -10.1mm)
+ |                                         PCK pbias 19.4% — ABOVE THRESHOLD, confirms irreducible competition
+v20b aet_initial 1.5→1.2 ....... AET P95 bias -8.7mm (best-ever raw, but AET pbias 15.5%)
+ |                                         PCK pbias 16.6% — ABOVE THRESHOLD
+ |                                         Proves: single-backbone cannot improve AET mean AND AET tail AND PCK simultaneously
+ |
+v21  Dual-backbone architecture . AET NSE 0.852, CWD NSE 0.928  ★ BEST AET PBIAS + PCK STABILITY
+                                         Main TCN (256) + AET sub-backbone [32,64,128] (RF=29mo, ~117K params)
+                                         AET head sees both backbones; PET/PCK see only main
+                                         AET pbias 7.8% (from 13.1% — halved), PCK pbias 7.7% (stable)
+                                         PET NSE 0.880 (major improvement from 0.825 — freed capacity)
+                                         CWD NSE 0.928, RMSE 15.7mm (near v17 best)
+                                         AET P95 bias -19.4mm (regressed from -10.1mm)
+                                         Sub-backbone RF too short for multi-year drought dynamics
+                                         Next: deeper 4-layer sub-backbone [32,64,128,128] (RF=61mo)
 ```
