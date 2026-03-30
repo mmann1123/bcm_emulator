@@ -138,6 +138,17 @@ def main():
         "dropout": cfg.model.backbone.dropout,
     }
 
+    # AET sub-backbone (optional dual-backbone mode)
+    aet_backbone_cfg = None
+    if hasattr(cfg.model, "aet_backbone"):
+        aet_backbone_cfg = {
+            "channels": list(cfg.model.aet_backbone.channels),
+            "kernel_size": cfg.model.aet_backbone.kernel_size,
+            "dropout": cfg.model.aet_backbone.dropout,
+            "dyn_channels": list(cfg.model.aet_backbone.dyn_channels),
+            "static_channels": list(cfg.model.aet_backbone.static_channels),
+        }
+
     # FVEG embedding config
     num_fveg_classes = 0
     fveg_embed_dim = 8
@@ -148,6 +159,7 @@ def main():
 
     model = BCMEmulator(
         backbone_cfg=backbone_cfg,
+        aet_backbone_cfg=aet_backbone_cfg,
         num_fveg_classes=num_fveg_classes,
         fveg_embed_dim=fveg_embed_dim,
     )

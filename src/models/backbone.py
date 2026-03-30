@@ -34,8 +34,7 @@ class TCNBackbone(nn.Module):
         if channels is None:
             channels = [64, 128, 128, 256, 256]
 
-        dilations = [1, 2, 4, 8, 16]
-        assert len(channels) == len(dilations)
+        dilations = [2**i for i in range(len(channels))]
 
         layers = []
         for i, (c, d) in enumerate(zip(channels, dilations)):

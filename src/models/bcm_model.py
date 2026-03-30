@@ -39,6 +39,7 @@ class BCMEmulator(nn.Module):
     def __init__(
         self,
         backbone_cfg: Optional[dict] = None,
+        aet_backbone_cfg: Optional[dict] = None,
         num_fveg_classes: int = 0,
         fveg_embed_dim: int = 8,
     ):
@@ -56,12 +57,31 @@ class BCMEmulator(nn.Module):
         self.backbone = TCNBackbone(**backbone_cfg)
         bb_out = self.backbone.out_channels
 
-        # Stage 2 heads
+        # AET sub-backbone (optional dual-backbone mode)
+        self.has_aet_backbone = aet_backbone_cfg is not None
+        if self.has_aet_backbone:
+            n_dyn = 14  # dynamic channels in backbone input (excl KBDI)
+            n_static_cont = 13
+            # Extract and remove routing keys before passing to TCNBackbone
+            aet_backbone_cfg = dict(aet_backbone_cfg)  # don't mutate caller's dict
+            self.aet_dyn_idx = list(aet_backbone_cfg.pop("dyn_channels"))
+            static_channels = list(aet_backbone_cfg.pop("static_channels"))
+            self.aet_static_idx = [n_dyn + s for s in static_channels]
+            self.aet_fveg_idx = list(range(n_dyn + n_static_cont, n_dyn + n_static_cont + fveg_embed_dim))
+            self.aet_channel_idx = self.aet_dyn_idx + self.aet_static_idx + self.aet_fveg_idx
+
+            aet_backbone_cfg["in_channels"] = len(self.aet_channel_idx)
+            self.aet_backbone = TCNBackbone(**aet_backbone_cfg)
+            aet_bb_out = bb_out + self.aet_backbone.out_channels
+        else:
+            aet_bb_out = bb_out
+
+        # Stage 2 heads (main backbone only)
         self.pet_head = PointwiseHead(bb_out, activation="softplus")
         self.pck_head = PointwiseHead(bb_out, activation="softplus")
 
         # Stage 3 head: stress-fraction architecture (stress × Kv × PET + correction)
-        self.aet_head = AETHead(bb_out)
+        self.aet_head = AETHead(aet_bb_out)
 
     def _prepend_fveg(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor]) -> torch.Tensor:
         """Concatenate FVEG embedding to input tensor if fveg is configured."""
@@ -122,13 +142,21 @@ class BCMEmulator(nn.Module):
         x = self._prepend_fveg(x, fveg_ids)
         features = self.backbone(x)
 
+        # AET sub-backbone
+        if self.has_aet_backbone:
+            aet_input = x[:, self.aet_channel_idx, :]
+            aet_features = self.aet_backbone(aet_input)
+            aet_combined = torch.cat([features, aet_features], dim=1)
+        else:
+            aet_combined = features
+
         pet = self.pet_head(features)
         pck = self.pck_head(features)
 
         # AET stress-fraction head
         _kbdi = kbdi if kbdi is not None else torch.zeros_like(pet)
         _kv = kv if kv is not None else torch.zeros_like(pet)
-        aet = self.aet_head(features, pet, pck, _kbdi, _kv)
+        aet = self.aet_head(aet_combined, pet, pck, _kbdi, _kv)
 
         cwd = pet - aet
 
@@ -179,13 +207,22 @@ class BCMEmulator(nn.Module):
             # Take features at timestep t
             feat_t = features[:, :, -1:]  # (B, C_bb, 1)
 
+            # AET sub-backbone
+            if self.has_aet_backbone:
+                aet_slice = x_slice[:, self.aet_channel_idx, :]
+                aet_features = self.aet_backbone(aet_slice)
+                aet_feat_t = aet_features[:, :, -1:]
+                aet_combined_t = torch.cat([feat_t, aet_feat_t], dim=1)
+            else:
+                aet_combined_t = feat_t
+
             pet_t = self.pet_head(feat_t)
             pck_t = self.pck_head(feat_t)
 
             # AET stress-fraction head
             kbdi_t = kbdi[:, :, t:t + 1] if kbdi is not None else torch.zeros_like(pet_t)
             kv_t = kv[:, :, t:t + 1] if kv is not None else torch.zeros_like(pet_t)
-            aet_t = self.aet_head(feat_t, pet_t, pck_t, kbdi_t, kv_t)
+            aet_t = self.aet_head(aet_combined_t, pet_t, pck_t, kbdi_t, kv_t)
 
             pet_out[:, :, t] = pet_t[:, :, 0]
             pck_out[:, :, t] = pck_t[:, :, 0]

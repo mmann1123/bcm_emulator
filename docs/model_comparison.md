@@ -2,7 +2,9 @@
 
 ## Objective
 
-This document compares all model versions (v1 through v17) with an emphasis on metrics that matter for **wildfire modeling**: accurate prediction of climatic water deficit (CWD) and actual evapotranspiration (AET) extremes. CWD is the primary driver of vegetation drought stress and fire danger in California; AET extremes reflect periods of rapid vegetation drying. Underpredicting these extremes means underestimating fire risk.
+This document compares all model versions (v1 through v21) with an emphasis on metrics that matter for **wildfire modeling**: accurate prediction of climatic water deficit (CWD) and actual evapotranspiration (AET) extremes. CWD is the primary driver of vegetation drought stress and fire danger in California; AET extremes reflect periods of rapid vegetation drying. Underpredicting these extremes means underestimating fire risk.
+
+**Current operational configuration: v19a-huber-tight-extreme0.1** — AET P95 bias -10.1mm (new project best), PCK pbias 8.0%, CWD NSE 0.925. Config: `loss_type=huber`, `huber_delta=0.5`, `extreme_weight=0.1`, `aet_initial=1.5`, `cwd_initial=2.0`. See tuning_experiments.md for full sweep results.
 
 ## Run Summary
 
@@ -31,6 +33,9 @@ This document compares all model versions (v1 through v17) with an emphasis on m
 | v15-awc-extreme | 2026-03-23 | MSE+Extreme | v14 + awc_total static channel (15 static), extreme_weight=0.05, extreme_asym=1.5 |
 | v16-aet1.5-extreme | 2026-03-23 | MSE+Extreme | v15 with aet_initial=1.5 (from 2.0), cwd=2.0, extreme_weight=0.05 — rebalanced AET/PCK trade-off |
 | v17-polaris-awc | 2026-03-24 | MSE+Extreme | POLARIS root-zone AWC (0-100cm) for SWS; dropped awc_total static (14 static); aet=1.5, extreme_weight=0.05 |
+| v18-sweep (14 runs) | 2026-03-25 | Various | 14-experiment hyperparameter sweep across loss weights, extreme penalty, loss type, scheduler. See tuning_experiments.md |
+| v19a-huber-tight-extreme0.1 | 2026-03-26 | Huber+Extreme | **OPERATIONAL CONFIG** — Huber delta=0.5 + extreme_weight=0.1. Synergistic combination: AET P95 bias -10.1mm (new project best) |
+| v19b-extreme0.1-petfloor0.3 | 2026-03-26 | MSE+Extreme | MSE path: extreme_weight=0.1 + pet_floor=0.3. Anti-synergistic — worse than either component alone. MSE path ceiling confirmed. |
 
 ## Global Performance Metrics
 
@@ -61,6 +66,8 @@ This document compares all model versions (v1 through v17) with an emphasis on m
 | v15-awc-extreme | 0.857 | 0.916 | 0.853 | 0.913 |
 | v16-aet1.5-extreme | 0.861 | 0.930 | 0.848 | 0.912 |
 | v17-polaris-awc | 0.879 | 0.949 | 0.851 | **0.929** |
+| v19a-huber-tight-extreme0.1 | 0.825 | 0.948 | 0.858 | 0.925 |
+| v19b-extreme0.1-petfloor0.3 | 0.859 | 0.925 | 0.854 | 0.925 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -89,6 +96,8 @@ This document compares all model versions (v1 through v17) with an emphasis on m
 | v15-awc-extreme | 0.853 | 0.757 | **0.831** | 0.924 |
 | v16-aet1.5-extreme | 0.859 | 0.868 | 0.816 | 0.920 |
 | v17-polaris-awc | 0.872 | 0.904 | 0.798 | **0.931** |
+| v19a-huber-tight-extreme0.1 | 0.812 | 0.893 | **0.828** | 0.926 |
+| v19b-extreme0.1-petfloor0.3 | 0.846 | 0.818 | 0.826 | 0.926 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -117,6 +126,8 @@ This document compares all model versions (v1 through v17) with an emphasis on m
 | v15-awc-extreme | 22.8 | 15.2 | 11.5 | 17.1 |
 | v16-aet1.5-extreme | 22.4 | 13.8 | 11.7 | 17.2 |
 | v17-polaris-awc | 21.0 | 11.8 | 11.6 | **15.5** |
+| v19a-huber-tight-extreme0.1 | 25.7 | 11.9 | **11.4** | 15.9 |
+| v19b-extreme0.1-petfloor0.3 | 22.6 | 14.4 | 11.5 | 16.0 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -145,6 +156,8 @@ This document compares all model versions (v1 through v17) with an emphasis on m
 | v15-awc-extreme | -1.1 | 19.0 | 6.6 | -3.1 |
 | v16-aet1.5-extreme | -0.5 | 9.7 | 9.5 | -3.7 |
 | v17-polaris-awc | -0.6 | 6.8 | 7.2 | -2.7 |
+| v19a-huber-tight-extreme0.1 | -0.8 | 8.0 | 13.1 | -3.5 |
+| v19b-extreme0.1-petfloor0.3 | -0.8 | 13.8 | 8.1 | -3.4 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -172,6 +185,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v15-awc-extreme | 25.2 | -16.4 | 0.755 |
 | v16-aet1.5-extreme | 25.7 | -16.3 | 0.753 |
 | v17-polaris-awc | 26.8 | -19.2 | 0.759 |
+| v19a-huber-tight-extreme0.1 | 21.9 | **-10.1** | **0.769** |
+| v19b-extreme0.1-petfloor0.3 | 24.8 | -16.1 | 0.754 |
 
 ### AET Extremes (P99)
 
@@ -195,6 +210,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v15-awc-extreme | 29.9 | -24.7 | 0.550 |
 | v16-aet1.5-extreme | 30.2 | -24.9 | 0.544 |
 | v17-polaris-awc | 33.1 | -28.4 | 0.572 |
+| v19a-huber-tight-extreme0.1 | 23.8 | **-16.1** | 0.579 |
+| v19b-extreme0.1-petfloor0.3 | 29.6 | -23.9 | 0.549 |
 
 ### CWD Extremes (P95)
 
@@ -218,6 +235,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v15-awc-extreme | 10.1 | -3.5 | 0.768 |
 | v16-aet1.5-extreme | 9.6 | -3.8 | 0.774 |
 | v17-polaris-awc | 9.0 | -3.0 | **0.781** |
+| v19a-huber-tight-extreme0.1 | 8.7 | -3.2 | 0.787 |
+| v19b-extreme0.1-petfloor0.3 | 9.4 | -3.7 | 0.769 |
 
 ### CWD Extremes (P99)
 
@@ -241,6 +260,8 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v15-awc-extreme | 7.1 | -3.4 | 0.662 |
 | v16-aet1.5-extreme | 6.6 | -3.6 | 0.672 |
 | v17-polaris-awc | 5.7 | -2.8 | **0.684** |
+| v19a-huber-tight-extreme0.1 | 5.8 | -3.3 | 0.696 |
+| v19b-extreme0.1-petfloor0.3 | 6.4 | -3.6 | 0.665 |
 
 ## Analysis for Wildfire Modeling
 
@@ -545,6 +566,26 @@ v17 switches the SWS bucket model's AWC source from BCMv8 full-column `(FC - WP)
 
 **Remaining gaps for operational wildfire use**
 
+---
+
+## Key Findings from Hyperparameter Tuning (v18–v19)
+
+The v18 sweep (14 experiments) and v19 combination experiments established several definitive findings that supersede earlier architectural hypotheses. Full experiment details are in tuning_experiments.md.
+
+**The loss function regime matters more than individual hyperparameters.** The MSE path has a fundamental gradient competition constraint: any configuration improving AET P95 bias by more than 3mm also pushes PCK pbias above 15%. This held without exception across all MSE-path experiments. Huber with delta=0.5 breaks this constraint by redirecting the cost to PET instead of PCK — the tight delta suppresses large PET errors into the MAE regime while keeping moderate AET and PCK errors in the MSE regime. For wildfire modeling where PET is an intermediate calculation, this trade is acceptable.
+
+**The extreme penalty and tight Huber are synergistic.** Huber-tight alone gave AET P95 bias -13.5mm; extreme_weight=0.1 alone gave -14.4mm. Combined in v19a the result is -10.1mm — not additive, but strongly synergistic. Tight Huber frees backbone gradient capacity from PET; the extreme penalty directs that freed capacity specifically to AET tail underprediction. In the MSE regime these signals compete; in the Huber regime they cooperate.
+
+**The MSE path is exhausted.** The v19b combination (extreme_weight=0.1 + pet_floor=0.3 under MSE) was anti-synergistic — worse than either component alone. Further MSE-path combinations are unlikely to yield meaningful gains.
+
+**The extreme penalty is non-negotiable.** The v18-mse-noextreme ablation confirmed removing extreme_weight=0.05 regresses AET P95 bias by 2mm. Retain in all future configurations.
+
+**Known operational characteristic of v19a.** AET pbias is elevated at 13.1% — the model overpredicts mean AET to gain tail accuracy. For wildfire risk assessment this is conservative, but downstream models consuming absolute AET values should apply a bias correction.
+
+---
+
+**Remaining gaps for operational wildfire use**
+
 - **Temporal resolution.** Monthly CWD smooths over intra-month drying events that drive ignition risk. Fire weather operates on daily-to-weekly scales — a single week of hot, dry, windy conditions can bring vegetation from marginal to critical fire danger regardless of monthly averages. A statistical downscaling step from monthly to daily CWD using PRISM daily tmax and VPD as covariates would bridge this gap without requiring a full daily BCM emulator.
 
 - **Fire season evaluation.** Current metrics average over all 12 months, which dilutes the signal from June-November when fire risk is concentrated. A fire-season-only evaluation would more accurately reflect operational accuracy and would likely show larger improvements in extreme bias metrics since summer is where AET and CWD extremes cluster. The persistent PCK pbias (~10% in v16) matters less operationally if it is driven by winter snowpack errors rather than summer snow-free conditions.
@@ -641,12 +682,39 @@ v16 aet_initial 2.0→1.5 ........... AET NSE 0.848, CWD NSE 0.912  ★ PCK RECO
  |                                       AET global: NSE 0.848 (slight regression from 0.853)
  |                                       Key finding: base AET weight ≠ tail performance; extreme penalty is the mechanism
 v17 POLARIS root-zone AWC ......... AET NSE 0.851, CWD NSE 0.929  ★ NEW BEST CWD (NSE, RMSE, KGE)
-                                         POLARIS 0-100cm AWC for SWS (~300-500mm vs BCMv8 ~500-2000mm)
-                                         Dropped awc_total static (14 static); aet=1.5, extreme_weight=0.05
-                                         CWD NSE 0.929 (new best, beating v13's 0.916), RMSE 15.5 (new best)
-                                         CWD KGE 0.931 (new best), CWD pbias -2.7%
-                                         PCK NSE 0.949, pbias 6.8% (best among weighted-loss runs)
-                                         PET NSE 0.879 (best among weighted-loss runs)
-                                         AET P95 bias -19.2mm (regressed from v16's -16.3mm)
-                                         Trade-off: more responsive SWS helps CWD but overcorrects AET extremes
+ |                                         POLARIS 0-100cm AWC for SWS (~300-500mm vs BCMv8 ~500-2000mm)
+ |                                         Dropped awc_total static (14 static); aet=1.5, extreme_weight=0.05
+ |                                         CWD NSE 0.929 (new best, beating v13's 0.916), RMSE 15.5 (new best)
+ |                                         CWD KGE 0.931 (new best), CWD pbias -2.7%
+ |                                         PCK NSE 0.949, pbias 6.8% (best among weighted-loss runs)
+ |                                         PET NSE 0.879 (best among weighted-loss runs)
+ |                                         AET P95 bias -19.2mm (regressed from v16's -16.3mm)
+ |                                         Trade-off: more responsive SWS helps CWD but overcorrects AET extremes
+ |
+v18 Hyperparameter sweep (14 runs) ........ See tuning_experiments.md for full results
+ |                                         KEY FINDINGS:
+ |                                         - Extreme penalty (weight=0.05) confirmed load-bearing: removing it
+ |                                           regresses AET P95 bias by 2mm (v18-mse-noextreme ablation)
+ |                                         - MSE-path ceiling: every >3mm AET P95 improvement costs PCK >15% pbias
+ |                                         - Huber tight (delta=0.5) breaks this pattern: best AET P95 (-13.5mm)
+ |                                           AND best PCK NSE (0.952) — redirects cost to PET instead of PCK
+ |                                         - P85 threshold better than P90 for CWD extremes (v18-extreme-p85)
+ |                                         - Closed: uniform weights, PCK in extreme_vars, standard Huber, halved LR
+ |
+v19b MSE path combination ......... AET P95 bias -16.1mm  ANTI-SYNERGISTIC — CLOSED PATH
+ |                                         extreme_weight=0.1 + pet_floor=0.3 (MSE)
+ |                                         Both effective individually, counterproductive combined
+ |                                         Confirms MSE path has reached its practical ceiling
+ |                                         PCK pbias 13.8%, CWD extremes regressed vs baseline
+ |
+v19a Huber-tight + extreme0.1 .... AET NSE 0.858, CWD NSE 0.925  ★★ NEW PROJECT BEST — OPERATIONAL CONFIG
+                                         loss_type=huber, huber_delta=0.5, extreme_weight=0.1
+                                         AET P95 bias -10.1mm (new best by 3.4mm — halved from v17 baseline)
+                                         AET P99 bias -16.1mm (vs -28.4mm at v17 baseline)
+                                         PCK NSE 0.948, pbias 8.0% (well within 12% threshold)
+                                         PET NSE 0.825 (acceptable — PET is intermediate, not operational output)
+                                         AET pbias 13.1% (known cost — conservative for wildfire risk use)
+                                         SYNERGY: huber-tight + extreme0.1 are complementary not additive
+                                         Mechanism: tight Huber frees PET gradient budget; extreme penalty
+                                         directs freed capacity to AET tail — complementary gradient regimes
 ```
