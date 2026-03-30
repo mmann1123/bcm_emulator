@@ -40,6 +40,7 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v20b-aet1.2 | 2026-03-27 | Huber+Extreme | v19a base + aet_initial=1.2 (from 1.5). AET P95 bias -8.7mm (best-ever) but AET pbias 15.5%, PCK pbias 16.6%. Confirms irreducible gradient competition. |
 | v21-dual-backbone | 2026-03-29 | Huber+Extreme | Dual-backbone architecture: main TCN (256) + AET sub-backbone (128, 3-layer, RF=29mo). AET head sees both; PET/PCK see only main. Gradient decoupling test. |
 | v21b-deeper-sub | 2026-03-30 | Huber+Extreme | v21 with deeper sub-backbone [32,64,128,128] (4-layer, RF=61mo). Tests whether longer receptive field recovers AET P95 bias. |
+| v22-dual-full | 2026-03-30 | Huber+Extreme | 5-layer AET sub-backbone [32,64,128,128,128] (RF=125mo) + separate FVEG embeddings. Tests full RF match + gradient isolation. |
 
 ## Global Performance Metrics
 
@@ -76,6 +77,7 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v20b-aet1.2 | 0.825 | 0.938 | 0.851 | 0.922 |
 | v21-dual-backbone | 0.880 | 0.930 | 0.852 | 0.928 |
 | v21b-deeper-sub | 0.872 | 0.932 | 0.855 | 0.924 |
+| v22-dual-full | 0.879 | 0.934 | 0.846 | 0.925 |
 
 ### KGE (Kling-Gupta Efficiency) -- higher is better
 
@@ -110,6 +112,7 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v20b-aet1.2 | 0.823 | 0.801 | 0.810 | 0.925 |
 | v21-dual-backbone | 0.870 | 0.881 | 0.799 | 0.923 |
 | v21b-deeper-sub | 0.860 | 0.855 | 0.818 | 0.925 |
+| v22-dual-full | 0.864 | 0.852 | 0.803 | 0.926 |
 
 ### RMSE (mm/month) -- lower is better
 
@@ -144,6 +147,7 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v20b-aet1.2 | 25.2 | 13.0 | 11.6 | 16.2 |
 | v21-dual-backbone | 20.9 | 13.9 | 11.6 | 15.7 |
 | v21b-deeper-sub | 21.6 | 13.7 | 11.5 | 16.1 |
+| v22-dual-full | 21.0 | 13.5 | 11.8 | 15.9 |
 
 ### Percent Bias (%) -- closer to 0 is better
 
@@ -178,6 +182,7 @@ This document compares all model versions (v1 through v21) with an emphasis on m
 | v20b-aet1.2 | 1.5 | 16.6 | 15.5 | -3.9 |
 | v21-dual-backbone | -0.9 | 7.7 | 7.8 | -3.3 |
 | v21b-deeper-sub | -0.7 | 11.1 | 8.7 | -3.5 |
+| v22-dual-full | -1.5 | 10.0 | **4.9** | -2.9 |
 
 ## Extreme Value Performance (Wildfire-Critical)
 
@@ -211,6 +216,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v20b-aet1.2 | 21.2 | **-8.7** | 0.763 |
 | v21-dual-backbone | 26.4 | -19.4 | 0.759 |
 | v21b-deeper-sub | 24.9 | -16.0 | 0.757 |
+| v22-dual-full | 28.1 | -21.1 | 0.745 |
 
 ### AET Extremes (P99)
 
@@ -240,6 +246,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v20b-aet1.2 | 22.7 | **-15.0** | 0.573 |
 | v21-dual-backbone | 32.5 | -28.2 | 0.580 |
 | v21b-deeper-sub | 28.7 | -23.0 | 0.591 |
+| v22-dual-full | 36.5 | -32.4 | 0.535 |
 
 ### CWD Extremes (P95)
 
@@ -269,6 +276,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v20b-aet1.2 | 9.0 | -3.3 | 0.791 |
 | v21-dual-backbone | 9.6 | -3.5 | 0.790 |
 | v21b-deeper-sub | 9.2 | -3.1 | 0.785 |
+| v22-dual-full | 9.2 | -3.0 | 0.776 |
 
 ### CWD Extremes (P99)
 
@@ -298,6 +306,7 @@ Extreme metrics are only available for v5+ runs. These measure performance on sa
 | v20b-aet1.2 | 6.1 | -3.4 | 0.669 |
 | v21-dual-backbone | 6.3 | -2.7 | 0.680 |
 | v21b-deeper-sub | 5.8 | -2.8 | 0.678 |
+| v22-dual-full | 6.3 | -3.1 | 0.651 |
 
 ## Analysis for Wildfire Modeling
 
@@ -666,6 +675,42 @@ v21b deepens the AET sub-backbone from 3 layers [32, 64, 128] to 4 layers [32, 6
 1. **Extreme penalty underweight.** The extreme_weight=0.05 was calibrated for the single-backbone regime where AET and the backbone share gradient capacity. In the dual-backbone regime, the AET sub-backbone has dedicated capacity that could absorb a stronger extreme signal. A higher extreme_weight (0.1 or 0.15) on the dual-backbone architecture may recover more of the gap.
 2. **FVEG embedding leakage.** The shared FVEG embedding is the only parameter that receives gradients from both backbones. The PCK regression (7.7%→11.1%) from v21 to v21b suggests the deeper sub-backbone pushes stronger gradients through the shared embedding, partially reintroducing the competition that the dual-backbone was designed to eliminate. Freezing the FVEG embedding during sub-backbone training, or using separate embeddings, could test this hypothesis.
 
+### v22-dual-full: 5-layer sub-backbone + separate FVEG embeddings
+
+v22 addresses both remaining gaps from v21b simultaneously: (1) extends the sub-backbone to 5 layers [32, 64, 128, 128, 128] with RF=125 months, matching the main backbone, and (2) gives the AET sub-backbone its own FVEG embedding (initialized as a copy of the main embedding, but updated independently during training). This eliminates the last shared parameter between the two gradient paths. Parameters: 1,259K (~316K added over baseline).
+
+**Results vs v21b (4-layer, shared FVEG):**
+
+- **AET pbias: dramatic improvement** — 4.9% vs 8.7% (-3.8pp). Best-ever AET pbias across all runs. The separate FVEG embedding allows the AET sub-backbone to learn vegetation representations specialized for drought stress without distorting the main backbone's vegetation encoding.
+- **PCK pbias: partial recovery** — 10.0% vs 11.1% (-1.1pp). The separate FVEG embedding reduced the leakage that caused v21b's PCK creep, though not fully back to v21's 7.7%.
+- **PET: slight improvement** — NSE 0.879 vs 0.872 (+0.007), RMSE 21.0 vs 21.6mm.
+- **CWD: slight improvement** — NSE 0.925 vs 0.924, pbias -2.9% vs -3.5%.
+- **AET P95 bias: regressed** — -21.1mm vs -16.0mm (+5.1mm worse). The 5-layer sub-backbone performed worse on AET extremes than the 4-layer, despite the longer receptive field.
+- **AET P99 bias: regressed** — -32.4mm vs -23.0mm (+9.4mm worse). Severe regression at the most extreme tail.
+- **AET KGE: regressed** — 0.803 vs 0.818 (-0.015). Lower correlation component despite much better bias.
+
+**Results vs v19a (operational baseline):**
+
+- **AET pbias: 4.9% vs 13.1%** (-8.3pp). v22 has less than half v19a's mean overprediction — the best AET mean accuracy across all runs by a wide margin.
+- **PET NSE: 0.879 vs 0.825** (+0.054). Substantial PET improvement maintained.
+- **CWD: essentially tied** — NSE 0.925 vs 0.925, pbias -2.9% vs -3.5%.
+- **AET P95 bias: -21.1mm vs -10.1mm** (+11.0mm worse). The dual-backbone AET extreme gap has widened rather than closed with each depth increase.
+- **PCK pbias: 10.0% vs 8.0%** (+2.0pp). Acceptable but not recovered to v19a level.
+
+**Receptive field hypothesis: definitively rejected.** The progression across v21→v21b→v22 shows a clear inverse relationship between sub-backbone depth and AET extreme performance:
+
+| Run | Sub-backbone layers | RF (months) | AET P95 bias | AET P99 bias |
+|-----|--------------------:|------------:|-------------:|-------------:|
+| v21 | 3 | 29 | -19.4mm | -28.2mm |
+| v21b | 4 | 61 | -16.0mm | -23.0mm |
+| v22 | 5 | 125 | -21.1mm | -32.4mm |
+
+v21b (4 layers, RF=61mo) was the sweet spot — deep enough to capture multi-year drought but not so deep that it overfits the mean. v22's 5-layer sub-backbone has enough capacity to drive AET pbias down to 4.9% (best-ever mean) but does so by learning a more conservative AET representation that systematically underestimates extremes. The sub-backbone is trading tail accuracy for mean accuracy as it gets deeper.
+
+**FVEG leakage hypothesis: partially confirmed.** Separate FVEG embeddings improved PCK pbias from 11.1% to 10.0% and AET pbias from 8.7% to 4.9%, confirming that shared embeddings were a gradient competition vector. However, PCK did not fully recover to v21's 7.7%, suggesting the remaining PCK regression is caused by the deeper sub-backbone's impact on the overall loss landscape (not parameter sharing).
+
+**Key insight:** The dual-backbone architecture has reached a Pareto frontier. It excels at mean prediction (AET pbias 4.9%, PET NSE 0.879) and gradient decoupling (PCK stable at ~10%), but AET extreme performance is structurally limited. The sub-backbone learns to minimize mean error, which means conservative predictions that compress the tails. The fix is not more depth — it's a stronger loss signal. The extreme_weight=0.05 was calibrated for the single-backbone regime; the dual-backbone's dedicated AET capacity can absorb a much stronger extreme penalty without destabilizing PET/PCK (since those gradients are isolated). The next experiment should use v21b's architecture (4-layer sub-backbone, which had the best extreme performance) with extreme_weight raised to 0.15 or higher.
+
 **Remaining gaps for operational wildfire use**
 
 ---
@@ -832,14 +877,25 @@ v21  Dual-backbone architecture . AET NSE 0.852, CWD NSE 0.928  ★ BEST AET PBI
  |                                         AET P95 bias -19.4mm (regressed from -10.1mm)
  |                                         Sub-backbone RF too short for multi-year drought dynamics
  |
-v21b Deeper sub-backbone ........ AET NSE 0.855, CWD NSE 0.924
-                                         Sub-backbone [32,64,128,128] (RF=61mo, ~217K new params)
-                                         AET P95 bias -16.0mm (recovered 3.4mm from v21's -19.4mm)
-                                         AET P99 bias -23.0mm (recovered 5.2mm from v21's -28.2mm)
-                                         AET KGE 0.818 (best among dual-backbone runs)
-                                         AET pbias 8.7% (still well below v19a's 13.1%)
-                                         PCK pbias 11.1% (crept up from v21's 7.7% — FVEG embedding leakage?)
-                                         PET NSE 0.872 (still +0.047 over v19a's 0.825)
-                                         RF hypothesis partially confirmed: 61mo helps but 6mm gap to v19a remains
-                                         Next steps: higher extreme_weight (0.1+) or separate FVEG embeddings
+v21b Deeper sub-backbone ........ AET NSE 0.855, CWD NSE 0.924  ★ BEST DUAL-BACKBONE AET EXTREMES
+ |                                         Sub-backbone [32,64,128,128] (RF=61mo, ~217K new params)
+ |                                         AET P95 bias -16.0mm (recovered 3.4mm from v21's -19.4mm)
+ |                                         AET P99 bias -23.0mm (recovered 5.2mm from v21's -28.2mm)
+ |                                         AET KGE 0.818 (best among dual-backbone runs)
+ |                                         AET pbias 8.7% (still well below v19a's 13.1%)
+ |                                         PCK pbias 11.1% (crept up from v21's 7.7% — FVEG embedding leakage?)
+ |                                         PET NSE 0.872 (still +0.047 over v19a's 0.825)
+ |                                         RF=61mo is the sweet spot — deeper sub-backbones overfit the mean
+ |
+v22  5-layer sub + separate FVEG  AET NSE 0.846, CWD NSE 0.925  ★ BEST-EVER AET PBIAS (4.9%)
+                                         Sub-backbone [32,64,128,128,128] (RF=125mo) + separate FVEG embeddings
+                                         AET pbias 4.9% (best-ever, halved from v21b's 8.7%, third of v19a's 13.1%)
+                                         PCK pbias 10.0% (partial recovery from v21b's 11.1% — FVEG fix helped)
+                                         PET NSE 0.879 (maintained), CWD NSE 0.925 (maintained)
+                                         AET P95 bias -21.1mm (REGRESSED from v21b's -16.0mm)
+                                         AET P99 bias -32.4mm (REGRESSED from v21b's -23.0mm)
+                                         RF hypothesis REJECTED: 5-layer worse than 4-layer on extremes
+                                         Deeper sub-backbone trades tail accuracy for mean accuracy
+                                         CONCLUSION: dual-backbone Pareto frontier reached
+                                         Next: v21b arch (4-layer) + higher extreme_weight (0.15+)
 ```

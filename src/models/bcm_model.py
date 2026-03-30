@@ -61,16 +61,24 @@ class BCMEmulator(nn.Module):
         self.has_aet_backbone = aet_backbone_cfg is not None
         if self.has_aet_backbone:
             n_dyn = 14  # dynamic channels in backbone input (excl KBDI)
-            n_static_cont = 13
             # Extract and remove routing keys before passing to TCNBackbone
             aet_backbone_cfg = dict(aet_backbone_cfg)  # don't mutate caller's dict
             self.aet_dyn_idx = list(aet_backbone_cfg.pop("dyn_channels"))
             static_channels = list(aet_backbone_cfg.pop("static_channels"))
             self.aet_static_idx = [n_dyn + s for s in static_channels]
-            self.aet_fveg_idx = list(range(n_dyn + n_static_cont, n_dyn + n_static_cont + fveg_embed_dim))
-            self.aet_channel_idx = self.aet_dyn_idx + self.aet_static_idx + self.aet_fveg_idx
+            # Channel indices into raw x (before FVEG prepend) — dynamic + static only
+            self.aet_raw_channel_idx = self.aet_dyn_idx + self.aet_static_idx
 
-            aet_backbone_cfg["in_channels"] = len(self.aet_channel_idx)
+            # Separate FVEG embedding for AET sub-backbone (gradient isolation)
+            if num_fveg_classes > 0:
+                self.aet_fveg_embedding = nn.Embedding(num_fveg_classes, fveg_embed_dim)
+                # Initialize with same weights as main embedding
+                self.aet_fveg_embedding.weight.data.copy_(self.fveg_embedding.weight.data)
+                n_aet_in = len(self.aet_raw_channel_idx) + fveg_embed_dim
+            else:
+                n_aet_in = len(self.aet_raw_channel_idx)
+
+            aet_backbone_cfg["in_channels"] = n_aet_in
             self.aet_backbone = TCNBackbone(**aet_backbone_cfg)
             aet_bb_out = bb_out + self.aet_backbone.out_channels
         else:
@@ -137,14 +145,30 @@ class BCMEmulator(nn.Module):
         else:
             return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi, kv)
 
+    def _build_aet_input(self, x_raw: torch.Tensor, fveg_ids: Optional[torch.Tensor]) -> torch.Tensor:
+        """Build AET sub-backbone input from raw x (before main FVEG prepend).
+
+        Extracts selected dynamic+static channels and appends the AET-specific
+        FVEG embedding (separate from the main backbone's embedding).
+        """
+        aet_input = x_raw[:, self.aet_raw_channel_idx, :]
+        if self.num_fveg_classes > 0 and fveg_ids is not None:
+            T = x_raw.shape[-1]
+            aet_fveg = self.aet_fveg_embedding(fveg_ids)  # (B, embed_dim)
+            aet_fveg_tiled = aet_fveg.unsqueeze(-1).expand(-1, -1, T)
+            aet_input = torch.cat([aet_input, aet_fveg_tiled], dim=1)
+        return aet_input
+
     def _forward_parallel(self, x: torch.Tensor, fveg_ids: Optional[torch.Tensor] = None, kbdi: Optional[torch.Tensor] = None, kv: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """Parallel forward pass (no teacher forcing substitution)."""
+        # AET sub-backbone (from raw x, before main FVEG prepend)
+        if self.has_aet_backbone:
+            aet_input = self._build_aet_input(x, fveg_ids)
+
         x = self._prepend_fveg(x, fveg_ids)
         features = self.backbone(x)
 
-        # AET sub-backbone
         if self.has_aet_backbone:
-            aet_input = x[:, self.aet_channel_idx, :]
             aet_features = self.aet_backbone(aet_input)
             aet_combined = torch.cat([features, aet_features], dim=1)
         else:
@@ -201,15 +225,16 @@ class BCMEmulator(nn.Module):
                     x_buf[:, self.AET_PREV_IDX, t] = aet_out[:, 0, t - 1]
 
             # Run backbone on sequence up to t+1 (causal, so only sees <=t)
-            x_slice = self._prepend_fveg(x_buf[:, :, :t + 1], fveg_ids)
+            x_raw_slice = x_buf[:, :, :t + 1]
+            x_slice = self._prepend_fveg(x_raw_slice, fveg_ids)
             features = self.backbone(x_slice)
 
             # Take features at timestep t
             feat_t = features[:, :, -1:]  # (B, C_bb, 1)
 
-            # AET sub-backbone
+            # AET sub-backbone (from raw slice, separate FVEG embedding)
             if self.has_aet_backbone:
-                aet_slice = x_slice[:, self.aet_channel_idx, :]
+                aet_slice = self._build_aet_input(x_raw_slice, fveg_ids)
                 aet_features = self.aet_backbone(aet_slice)
                 aet_feat_t = aet_features[:, :, -1:]
                 aet_combined_t = torch.cat([feat_t, aet_feat_t], dim=1)
