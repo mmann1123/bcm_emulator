@@ -103,6 +103,10 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, metrics), config.yaml, best_model.pt, training_history.json, metrics.json, spatial_maps/. `compare_snapshots()` diffs metrics between runs.
 
+### Fire Probability Model (scripts/fire_model/, src/fire_model/)
+
+Baseline logistic regression predicting monthly wildfire ignition at 1km pixels. Two tracks compared: Track A (BCMv8 targets) vs Track B (emulator predictions). Pipeline: `00_export_predictions.py` → `01_build_panel.py` → `02_train_model.py` → `03_evaluate.py`. Result: **Delta AUC = +0.0008 — emulator is operationally viable** (overall AUC 0.913). `src/fire_model/forecast.py` provides `FireProbabilityForecaster` for operational forward forecasting. See `scripts/fire_model/README.md` for full documentation.
+
 ## Configuration
 
 All settings live in `config.yaml`. The `ConfigNamespace` loader (src/utils/config.py) converts nested YAML to attribute-access objects. Adding new config keys requires no code changes to the loader.

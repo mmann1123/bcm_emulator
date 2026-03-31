@@ -101,31 +101,41 @@ def main():
 
     logger.info(f"Loaded checkpoint: epoch {ckpt['epoch']+1}, val_loss={ckpt['val_loss']:.4f}")
 
-    # Get full time range
+    # Use test period only — training features use BCMv8 targets directly
+    from src.data.splits import get_time_splits, get_pixel_indices
+    from src.data.dataset import BCMPixelDataset
+    from torch.utils.data import DataLoader
+
+    splits = get_time_splits(
+        cfg.paths.zarr_store,
+        train_start=cfg.temporal.train_start,
+        train_end=cfg.temporal.train_end,
+        test_start=cfg.temporal.test_start,
+        test_end=cfg.temporal.test_end,
+    )
+    test_slice = splits["test"]
+
     time_index = np.array(store["meta/time"])
-    T_total = len(time_index)
+    time_test = time_index[test_slice]
+    T_test = test_slice.stop - test_slice.start
     H, W = cfg.grid.height, cfg.grid.width
-    logger.info(f"Full time range: {time_index[0]} to {time_index[-1]} ({T_total} months)")
+    logger.info(f"Test period: {time_test[0]} to {time_test[-1]} ({T_test} months)")
 
     # Normalization stats
     tgt_mean = np.array(store["norm/target_mean"])
     tgt_std = np.array(store["norm/target_std"])
 
     # All valid pixels
-    from src.data.splits import get_pixel_indices
-    from src.data.dataset import BCMPixelDataset
-    from torch.utils.data import DataLoader
-
     pixel_indices = get_pixel_indices(cfg.paths.zarr_store, subsample_frac=1.0)
-    logger.info(f"Processing {len(pixel_indices)} valid pixels, {T_total} timesteps")
+    logger.info(f"Processing {len(pixel_indices)} valid pixels, {T_test} timesteps")
 
     kv_table_path = getattr(cfg.paths, "kv_table_path", "")
 
     dataset = BCMPixelDataset(
         zarr_path=cfg.paths.zarr_store,
         pixel_indices=pixel_indices,
-        time_slice=slice(0, T_total),
-        seq_len=T_total,
+        time_slice=test_slice,
+        seq_len=T_test,
         normalize=True,
         kv_table_path=kv_table_path,
     )
@@ -154,16 +164,10 @@ def main():
         collate_fn=collate_fn,
     )
 
-    # Allocate output arrays (memory-mapped for large size)
+    # Allocate output arrays
     predicted = {}
     for var in VARS:
-        fpath = out_dir / f"{var}.npy"
-        # Create memmap file
-        arr = np.lib.format.open_memmap(
-            str(fpath), mode="w+", dtype=np.float32, shape=(T_total, H, W),
-        )
-        arr[:] = np.nan
-        predicted[var] = arr
+        predicted[var] = np.full((T_test, H, W), np.nan, dtype=np.float32)
 
     # Run inference
     pixel_count = 0
@@ -203,18 +207,18 @@ def main():
 
             pixel_count += B
 
-    # Flush memmaps
+    # Save predictions
     for var in VARS:
-        predicted[var].flush()
-        size_gb = predicted[var].nbytes / 1e9
-        valid = predicted[var][predicted[var] != np.nan]
-        logger.info(f"  {var}: {size_gb:.1f} GB, shape {predicted[var].shape}")
+        fpath = out_dir / f"{var}.npy"
+        np.save(str(fpath), predicted[var])
+        size_mb = predicted[var].nbytes / 1e6
+        logger.info(f"  {var}: {size_mb:.0f} MB, shape {predicted[var].shape}")
 
     # Save time index
-    np.save(str(out_dir / "time_index.npy"), time_index)
+    np.save(str(out_dir / "time_index.npy"), time_test)
 
     logger.info(f"Predictions saved to {out_dir}")
-    logger.info(f"Time range: {time_index[0]} to {time_index[-1]}")
+    logger.info(f"Time range: {time_test[0]} to {time_test[-1]} ({T_test} months)")
 
 
 if __name__ == "__main__":
