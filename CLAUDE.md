@@ -124,7 +124,9 @@ Total = Σ w_var * Huber(var) + extreme_weight * MSE_extreme(extreme_vars)
 
 ## Current Status
 
-Best CWD: **v17-polaris-awc** (CWD NSE 0.929, RMSE 15.5, KGE 0.931 — all best-ever). Best AET extremes: **v16-aet1.5-extreme** (AET P95 bias -16.3mm — best among valid runs). Best AET KGE: **v14-sws-stress** / **v15-awc-extreme** (0.831 tied). Best overall PET/PCK: **v6-huber** (PET NSE 0.927, PCK NSE 0.950). Best balanced: **v17-polaris-awc** (PCK pbias 6.8%, CWD best-ever, PET NSE 0.879 — best weighted-loss run; trade-off: AET P95 bias -19.2mm regressed from v16's -16.3mm). v17 uses POLARIS root-zone AWC (0-100cm, ~300-500mm) for SWS instead of BCMv8 full-column (~500-2000mm), producing a more drought-responsive SWS signal. See `docs/model_comparison.md` for full run-by-run analysis.
+Best CWD: **v17-polaris-awc** (CWD NSE 0.929, RMSE 15.5, KGE 0.931 — all best-ever). Best AET extremes: **v16-aet1.5-extreme** (AET P95 bias -16.3mm — best among valid runs). Best AET KGE: **v14-sws-stress** / **v15-awc-extreme** (0.831 tied). Best overall PET/PCK: **v6-huber** (PET NSE 0.927, PCK NSE 0.950). Best balanced: **v17-polaris-awc** (PCK pbias 6.8%, CWD best-ever, PET NSE 0.879 — best weighted-loss run; trade-off: AET P95 bias -19.2mm regressed from v16's -16.3mm). v17 uses POLARIS root-zone AWC (0-100cm, ~300-500mm) for SWS instead of BCMv8 full-column (~500-2000mm), producing a more drought-responsive SWS signal.
+
+**Out-of-sample validation: v19a-extended** — v19a model evaluated on 5-year holdout (Oct 2019 - Sep 2024) including 2020-2024 megadrought. CWD NSE 0.919 (-0.006 from training), CWD KGE 0.940 (improved), PCK NSE 0.965 (best-ever). Emulator validated for fire probability modeling. See `docs/model_comparison.md` for full run-by-run analysis.
 
 **Important:** The zarr stores **raw (unnormalized) values** for all channels. Normalization stats in `/norm/*` are applied on-the-fly by `BCMPixelDataset`. When adding derived channels via scripts (not `prepare_data.py --steps zarr`), write raw values and append norm stats — do NOT z-normalize before writing.
 

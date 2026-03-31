@@ -75,6 +75,7 @@ def download_prism_monthly(
     year_start: int,
     year_end: int,
     out_dir: str,
+    month_end: int = 12,
 ) -> List[str]:
     """Download PRISM monthly data for a variable at 800m.
 
@@ -86,6 +87,8 @@ def download_prism_monthly(
         Year range (inclusive).
     out_dir : str
         Output directory for GeoTIFFs.
+    month_end : int
+        Last month to download in year_end (1-12).
     """
     out_path = Path(out_dir) / variable
     out_path.mkdir(parents=True, exist_ok=True)
@@ -94,7 +97,7 @@ def download_prism_monthly(
     for year in range(year_start, year_end + 1):
         for month in range(1, 13):
             # Skip months beyond data range
-            if year == year_end and month > 4:
+            if year == year_end and month > month_end:
                 break
 
             tif_pattern = f"*{year}{month:02d}*.tif"
@@ -123,6 +126,7 @@ def download_prism_daily_ppt(
     year_start: int,
     year_end: int,
     out_dir: str,
+    month_end: int = 12,
 ) -> List[str]:
     """Download daily PRISM ppt at 800m for wet day derivation.
 
@@ -144,7 +148,7 @@ def download_prism_daily_ppt(
 
     for year in range(year_start, year_end + 1):
         for month in range(1, 13):
-            if year == year_end and month > 4:
+            if year == year_end and month > month_end:
                 break
 
             month_dir = out_base / f"{year}{month:02d}"
@@ -186,6 +190,7 @@ def download_prism_daily_tmax(
     year_start: int,
     year_end: int,
     out_dir: str,
+    month_end: int = 12,
 ) -> List[str]:
     """Download daily PRISM tmax at 4km for fire feature derivation.
 
@@ -206,7 +211,7 @@ def download_prism_daily_tmax(
 
     for year in range(year_start, year_end + 1):
         for month in range(1, 13):
-            if year == year_end and month > 4:
+            if year == year_end and month > month_end:
                 break
 
             month_dir = out_base / f"{year}{month:02d}"

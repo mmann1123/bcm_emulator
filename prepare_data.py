@@ -41,6 +41,9 @@ def main():
     from src.utils.io_helpers import get_bcm_reference_profile
     bcm_profile = get_bcm_reference_profile(cfg.paths.bcm_dir)
 
+    # Parse month_end from test_end for PRISM downloads (e.g., "2024-09" -> 9)
+    month_end = int(cfg.temporal.test_end[5:7])
+
     # Step 1: Download BCMv8 climate inputs from ScienceBase (ppt, tmin, tmax)
     if run_all or "sciencebase" in steps:
         logger.info("=== Downloading BCMv8 climate inputs from ScienceBase ===")
@@ -77,6 +80,7 @@ def main():
             year_start=int(cfg.temporal.train_start[:4]),
             year_end=int(cfg.temporal.test_end[:4]),
             out_dir=cfg.paths.prism_daily_dir,
+            month_end=month_end,
         )
 
         logger.info("=== Computing wet days and ppt intensity ===")
@@ -95,6 +99,7 @@ def main():
             year_start=int(cfg.temporal.train_start[:4]),
             year_end=int(cfg.temporal.test_end[:4]),
             out_dir=cfg.paths.prism_daily_dir,
+            month_end=month_end,
         )
 
     # Step 4: Download srad (TerraClimate replaces DAYMET)

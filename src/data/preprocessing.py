@@ -387,6 +387,11 @@ def build_zarr_store(
     valid_mask = get_valid_mask(bcm_dir)
     store.create_array(name="meta/valid_mask", data=valid_mask)
 
+    # Grid transform and CRS (for rasterization alignment)
+    t = bcm_profile["transform"]
+    store.create_array(name="meta/transform", data=np.array([t.a, t.b, t.c, t.d, t.e, t.f], dtype=np.float64))
+    store.create_array(name="meta/crs", data=np.array([str(bcm_profile["crs"])]))
+
     # ---- Static inputs ----
     logger.info("Processing static inputs...")
 
