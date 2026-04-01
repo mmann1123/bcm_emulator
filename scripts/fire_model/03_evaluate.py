@@ -464,6 +464,119 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
     logger.info(f"  Spatial maps saved to {track_dir}")
 
 
+def compute_permutation_importance(model_path, features, df_test, track_name,
+                                    out_dir, n_repeats=5, subsample=100000):
+    """Compute and save permutation importance (model-agnostic).
+
+    Measures AUC drop when each feature is shuffled. Works for any model type.
+    Uses a subsample of the test set for speed.
+    """
+    from sklearn.inspection import permutation_importance
+
+    logger.info(f"  Computing permutation importance for {track_name} "
+                f"(n_repeats={n_repeats}, subsample={subsample})...")
+
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+
+    # Subsample for speed (full test set is >1M rows)
+    rng = np.random.RandomState(42)
+    if len(df_test) > subsample:
+        idx = rng.choice(len(df_test), subsample, replace=False)
+        df_sub = df_test.iloc[idx]
+    else:
+        df_sub = df_test
+
+    X = df_sub[features].values
+    y = df_sub["fire"].values
+
+    result = permutation_importance(
+        model, X, y,
+        scoring="roc_auc",
+        n_repeats=n_repeats,
+        random_state=42,
+        n_jobs=-1,
+    )
+
+    imp_df = pd.DataFrame({
+        "feature": features,
+        "importance_mean": result.importances_mean,
+        "importance_std": result.importances_std,
+    }).sort_values("importance_mean", ascending=False)
+
+    imp_df.to_csv(out_dir / "permutation_importance.csv", index=False)
+
+    # Plot
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(8, max(6, len(features) * 0.3)))
+    imp_sorted = imp_df.sort_values("importance_mean", ascending=True)
+    colors = ["#c0392b" if v > 0.001 else "#7f8c8d" for v in imp_sorted["importance_mean"]]
+    ax.barh(range(len(imp_sorted)), imp_sorted["importance_mean"],
+            xerr=imp_sorted["importance_std"], color=colors, alpha=0.85)
+    ax.set_yticks(range(len(imp_sorted)))
+    ax.set_yticklabels(imp_sorted["feature"], fontsize=9)
+    ax.set_xlabel("Mean AUC decrease when feature is shuffled", fontsize=10)
+    ax.set_title(f"Permutation Importance — {track_name}\n(test set, {n_repeats} repeats)", fontsize=11)
+    ax.axvline(0, color="k", linewidth=0.5)
+    fig.tight_layout()
+    fig.savefig(str(out_dir / "permutation_importance.png"), dpi=150)
+    plt.close(fig)
+
+    # Print top features
+    logger.info(f"  Top features by permutation importance ({track_name}):")
+    for _, row in imp_df.head(10).iterrows():
+        logger.info(f"    {row['feature']:25s} {row['importance_mean']:+.4f} "
+                    f"(+/- {row['importance_std']:.4f})")
+
+    return imp_df
+
+
+def _make_importance_comparison(imp_a, imp_b, out_path):
+    """Side-by-side permutation importance for Track A vs Track B."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    # Use common feature names (strip _a/_b suffixes for alignment)
+    def normalize_name(n):
+        for suffix in ("_a", "_b"):
+            if n.endswith(suffix):
+                return n[:-len(suffix)]
+        return n
+
+    imp_a = imp_a.copy()
+    imp_b = imp_b.copy()
+    imp_a["feat_norm"] = imp_a["feature"].apply(normalize_name)
+    imp_b["feat_norm"] = imp_b["feature"].apply(normalize_name)
+
+    merged = imp_a[["feat_norm", "importance_mean"]].merge(
+        imp_b[["feat_norm", "importance_mean"]],
+        on="feat_norm", suffixes=("_A", "_B"),
+    )
+    merged = merged.sort_values("importance_mean_A", ascending=True)
+
+    fig, ax = plt.subplots(figsize=(10, max(6, len(merged) * 0.35)))
+    y = np.arange(len(merged))
+    height = 0.35
+    ax.barh(y - height / 2, merged["importance_mean_A"], height,
+            label="Track A (BCMv8)", color="#e67e22", alpha=0.85)
+    ax.barh(y + height / 2, merged["importance_mean_B"], height,
+            label="Track B (Emulator)", color="#2980b9", alpha=0.85)
+    ax.set_yticks(y)
+    ax.set_yticklabels(merged["feat_norm"], fontsize=9)
+    ax.set_xlabel("Mean AUC decrease (permutation importance)", fontsize=10)
+    ax.set_title("Feature Importance Comparison: BCMv8 vs Emulator", fontsize=12)
+    ax.legend(fontsize=10)
+    ax.axvline(0, color="k", linewidth=0.5)
+    fig.tight_layout()
+    fig.savefig(str(out_path), dpi=150)
+    plt.close(fig)
+    logger.info(f"  Saved importance comparison: {out_path.name}")
+
+
 def _make_comparison_figure(wy, prob_map, burned_mask, valid_mask, threshold, track_name, out_path):
     """3-panel figure: predicted probability, overlap map, actual fires."""
     import matplotlib
@@ -584,6 +697,16 @@ def main():
 
     # ROC comparison
     save_roc_comparison(y_test, prob_a, prob_b, eval_dir / "roc_comparison.png")
+
+    # Permutation importance (model-agnostic)
+    logger.info("Computing feature importance...")
+    imp_a = compute_permutation_importance(
+        model_a_path, TRACK_A_FEATURES, df_test, "Track A (BCMv8)", eval_dir / "trackA")
+    imp_b = compute_permutation_importance(
+        model_b_path, TRACK_B_FEATURES, df_test, "Track B (Emulator)", eval_dir / "trackB")
+
+    # Combined importance comparison plot
+    _make_importance_comparison(imp_a, imp_b, eval_dir / "importance_comparison.png")
 
     # Spatial maps (full grid prediction, not just panel samples)
     maps_dir = OUTPUT_DIR / "spatial_maps"
