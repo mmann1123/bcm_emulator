@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import zarr
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
@@ -247,15 +248,101 @@ def save_roc_comparison(y_true, prob_a, prob_b, path):
     plt.close(fig)
 
 
-def save_spatial_maps(df_test, prob_col, track_dir):
-    """Save fire probability GeoTIFFs for each water year fire season."""
+def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
+    """Save full-grid fire probability GeoTIFFs for each water year fire season.
+
+    Predicts on ALL valid pixels (not just sampled panel), so the output
+    covers the entire California domain without gaps.
+    """
+    import json
     import rasterio
 
     track_dir.mkdir(parents=True, exist_ok=True)
-    months_arr = df_test["month"].values
-    years_arr = df_test["year"].values
-    wy_arr = np.where(months_arr >= 10, years_arr + 1, years_arr)
-    fire_season_mask = np.isin(months_arr, [6, 7, 8, 9, 10, 11])
+
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+
+    # Load zarr data
+    store = zarr.open_group(ZARR_PATH, mode="r")
+    valid_mask = np.array(store["meta/valid_mask"])
+    time_index = np.array(store["meta/time"])
+    static = np.array(store["inputs/static"])
+    dyn = store["inputs/dynamic"]
+
+    valid_rows, valid_cols = np.where(valid_mask)
+    n_valid = len(valid_rows)
+
+    # Load climatology
+    clim = np.load(str(OUTPUT_DIR / "climatology_1984_2016.npz"))
+    cwd_clim = clim["cwd"]
+    aet_clim = clim["aet"]
+    pet_clim = clim["pet"]
+
+    # Load TSF (full zarr range)
+    fire_raster = np.load(str(OUTPUT_DIR / "fire_raster.npy"), mmap_mode="r")
+    tsf_init_path = OUTPUT_DIR / "tsf_state_1984-01.npy"
+    initial_tsf = np.load(str(tsf_init_path)) if tsf_init_path.exists() else None
+
+    # Compute TSF inline (same logic as 01_build_panel.py)
+    T_fire = fire_raster.shape[0]
+    if initial_tsf is not None:
+        tsf_state = initial_tsf.astype(np.float32).copy()
+    else:
+        tsf_state = np.full((H, W), 600.0, dtype=np.float32)
+    tsf_state[~valid_mask] = 0.0
+    tsf_full = np.zeros((T_fire, H, W), dtype=np.float32)
+    for t in range(T_fire):
+        tsf_full[t] = tsf_state
+        tsf_state[valid_mask] += 1.0
+        tsf_state = np.minimum(tsf_state, 600.0)
+        burned = (fire_raster[t] == 1) & valid_mask
+        tsf_state[burned] = 0.0
+
+    # Load hydrology source based on track
+    if track_suffix == "_b":
+        pred_dir = OUTPUT_DIR / "predictions"
+        pred_cwd = np.load(str(pred_dir / "cwd.npy"), mmap_mode="r")
+        pred_aet = np.load(str(pred_dir / "aet.npy"), mmap_mode="r")
+        pred_pet = np.load(str(pred_dir / "pet.npy"), mmap_mode="r")
+        pred_time = np.load(str(pred_dir / "time_index.npy"), allow_pickle=True)
+        pred_ym_to_idx = {str(ym): i for i, ym in enumerate(pred_time)}
+    else:
+        pred_ym_to_idx = {}
+
+    # CWD targets for cumulative anomaly computation
+    cwd_targets = np.array(store["targets/cwd"])
+    aet_targets = np.array(store["targets/aet"])
+    pet_targets = np.array(store["targets/pet"])
+
+    # FVEG broad categories
+    fveg_map_path = Path("/home/mmann1123/extra_space/bcm_emulator/data/fveg/fveg_class_map.json")
+    fveg_vat_path = Path("/home/mmann1123/extra_space/fveg/fveg_vat.csv")
+    with open(fveg_map_path) as f:
+        fveg_map = json.load(f)
+    import pandas as _pd
+    vat = _pd.read_csv(fveg_vat_path)
+    whrnum_to_lf = vat.drop_duplicates("WHRNUM").set_index("WHRNUM")["LIFEFORM"].to_dict()
+    fveg_ids = static[13].astype(int)
+    fveg_forest = np.zeros((H, W), dtype=np.float32)
+    fveg_shrub = np.zeros((H, W), dtype=np.float32)
+    fveg_herb = np.zeros((H, W), dtype=np.float32)
+    for cid_str, info in fveg_map["id_to_info"].items():
+        lf = whrnum_to_lf.get(info["whrnum"], "OTHER")
+        m = fveg_ids == int(cid_str)
+        if lf in ("CONIFER", "HARDWOOD"):
+            fveg_forest[m] = 1.0
+        elif lf == "SHRUB":
+            fveg_shrub[m] = 1.0
+        elif lf == "HERBACEOUS":
+            fveg_herb[m] = 1.0
+
+    # Static features for all valid pixels
+    elev_v = static[0, valid_rows, valid_cols]
+    aridity_v = static[8, valid_rows, valid_cols]
+    windward_v = static[12, valid_rows, valid_cols]
+    forest_v = fveg_forest[valid_rows, valid_cols]
+    shrub_v = fveg_shrub[valid_rows, valid_cols]
+    herb_v = fveg_herb[valid_rows, valid_cols]
 
     profile = {
         "driver": "GTiff", "dtype": "float32", "width": W, "height": H,
@@ -263,27 +350,115 @@ def save_spatial_maps(df_test, prob_col, track_dir):
         "nodata": -9999.0, "compress": "lzw",
     }
 
-    for wy_val in tqdm(range(2020, 2025), desc="Spatial maps"):
-        mask = (wy_arr == wy_val) & fire_season_mask
-        if mask.sum() == 0:
+    # Fire season months: Jun(6) through Nov(11)
+    # WY2020 = Oct 2019 – Sep 2020, fire season = Jun 2020 – Nov 2019+Oct-Nov 2019
+    # More precisely: for each WY, fire season = {Oct,Nov} of year WY-1 + {Jun..Sep} of year WY
+    fire_season_months = [6, 7, 8, 9, 10, 11]
+
+    ym_to_zarr_idx = {ym: i for i, ym in enumerate(time_index)}
+
+    for wy_val in tqdm(range(2020, 2025), desc="Spatial maps (full grid)"):
+        # Months in this WY's fire season
+        wy_months = []
+        for m in [10, 11]:  # Oct, Nov of prior year
+            ym = f"{wy_val-1:04d}-{m:02d}"
+            if ym in ym_to_zarr_idx:
+                wy_months.append((ym, wy_val - 1, m))
+        for m in [6, 7, 8, 9]:  # Jun-Sep of WY year
+            ym = f"{wy_val:04d}-{m:02d}"
+            if ym in ym_to_zarr_idx:
+                wy_months.append((ym, wy_val, m))
+
+        if not wy_months:
             continue
 
-        # Accumulate probability per pixel
-        prob_sum = np.full((H, W), 0.0, dtype=np.float64)
-        prob_count = np.zeros((H, W), dtype=np.int32)
+        prob_sum = np.zeros(n_valid, dtype=np.float64)
+        n_months = 0
 
-        rows = df_test["row"].values[mask]
-        cols = df_test["col"].values[mask]
-        probs = prob_col[mask]
+        for ym, year, month in wy_months:
+            zarr_t = ym_to_zarr_idx[ym]
+            m_idx = month - 1
 
-        np.add.at(prob_sum, (rows, cols), probs)
-        np.add.at(prob_count, (rows, cols), 1)
+            # Dynamic features
+            dyn_slice = np.array(dyn[zarr_t, :, :, :])  # (15, H, W)
+            ppt_v = dyn_slice[0, valid_rows, valid_cols]
+            tmin_v = dyn_slice[1, valid_rows, valid_cols]
+            tmax_v = dyn_slice[2, valid_rows, valid_cols]
+            vpd_v = dyn_slice[9, valid_rows, valid_cols]
+            srad_v = dyn_slice[5, valid_rows, valid_cols]
+            kbdi_v = dyn_slice[10, valid_rows, valid_cols]
+            sws_v = dyn_slice[11, valid_rows, valid_cols]
+            vpd_std_v = dyn_slice[12, valid_rows, valid_cols]
 
-        prob_mean = np.where(prob_count > 0, prob_sum / prob_count, -9999.0).astype(np.float32)
+            # Hydrology source
+            if track_suffix == "_b" and ym in pred_ym_to_idx:
+                pt = pred_ym_to_idx[ym]
+                cwd_v = pred_cwd[pt, valid_rows, valid_cols]
+                aet_v = pred_aet[pt, valid_rows, valid_cols]
+                pet_v = pred_pet[pt, valid_rows, valid_cols]
+            else:
+                cwd_v = cwd_targets[zarr_t, valid_rows, valid_cols]
+                aet_v = aet_targets[zarr_t, valid_rows, valid_cols]
+                pet_v = pet_targets[zarr_t, valid_rows, valid_cols]
+
+            # Anomalies
+            cwd_anom_v = cwd_v - cwd_clim[m_idx, valid_rows, valid_cols]
+            aet_anom_v = aet_v - aet_clim[m_idx, valid_rows, valid_cols]
+            pet_anom_v = pet_v - pet_clim[m_idx, valid_rows, valid_cols]
+
+            # Cumulative CWD anomalies
+            cwd_cum3 = np.zeros(n_valid, dtype=np.float32)
+            cwd_cum6 = np.zeros(n_valid, dtype=np.float32)
+            for w in range(6):
+                t_back = zarr_t - w
+                if t_back < 0:
+                    continue
+                m_back = int(time_index[t_back][5:7]) - 1
+                if track_suffix == "_b" and str(time_index[t_back]) in pred_ym_to_idx:
+                    pt_b = pred_ym_to_idx[str(time_index[t_back])]
+                    cwd_back = pred_cwd[pt_b, valid_rows, valid_cols]
+                else:
+                    cwd_back = cwd_targets[t_back, valid_rows, valid_cols]
+                anom_back = cwd_back - cwd_clim[m_back, valid_rows, valid_cols]
+                cwd_cum6 += anom_back
+                if w < 3:
+                    cwd_cum3 += anom_back
+
+            # TSF
+            tsf_months = tsf_full[zarr_t, valid_rows, valid_cols]
+            tsf_years_v = tsf_months / 12.0
+            tsf_log_v = np.log1p(tsf_years_v)
+
+            # Seasonal
+            month_sin = np.float32(np.sin(2 * np.pi * month / 12))
+            month_cos = np.float32(np.cos(2 * np.pi * month / 12))
+            fire_season = np.float32(1.0 if month in fire_season_months else 0.0)
+
+            # Assemble features (must match TRACK_A/B_FEATURES order)
+            X = np.column_stack([
+                ppt_v, tmin_v, tmax_v, vpd_v, srad_v, kbdi_v, sws_v, vpd_std_v,
+                np.full(n_valid, month_sin),
+                np.full(n_valid, month_cos),
+                np.full(n_valid, fire_season),
+                elev_v, aridity_v, windward_v,
+                forest_v, shrub_v, herb_v,
+                tsf_years_v, tsf_log_v,
+                cwd_anom_v, aet_anom_v, pet_anom_v,
+                cwd_cum3, cwd_cum6,
+            ])
+
+            probs = model.predict_proba(X)[:, 1]
+            prob_sum += probs
+            n_months += 1
+
+        # Average across fire season months
+        prob_mean_valid = (prob_sum / n_months).astype(np.float32)
+        prob_map = np.full((H, W), -9999.0, dtype=np.float32)
+        prob_map[valid_rows, valid_cols] = prob_mean_valid
 
         out_path = track_dir / f"fire_prob_WY{wy_val}_fire_season.tif"
         with rasterio.open(str(out_path), "w", **profile) as dst:
-            dst.write(prob_mean[np.newaxis, :])
+            dst.write(prob_map[np.newaxis, :])
 
     logger.info(f"  Spatial maps saved to {track_dir}")
 
@@ -324,10 +499,10 @@ def main():
     # ROC comparison
     save_roc_comparison(y_test, prob_a, prob_b, eval_dir / "roc_comparison.png")
 
-    # Spatial maps
+    # Spatial maps (full grid prediction, not just panel samples)
     maps_dir = OUTPUT_DIR / "spatial_maps"
-    save_spatial_maps(df_test, prob_a, maps_dir / "trackA")
-    save_spatial_maps(df_test, prob_b, maps_dir / "trackB")
+    save_spatial_maps(model_a_path, TRACK_A_FEATURES, "_a", maps_dir / "trackA")
+    save_spatial_maps(model_b_path, TRACK_B_FEATURES, "_b", maps_dir / "trackB")
 
     # ---- Comparison summary ----
     summary_rows = []
