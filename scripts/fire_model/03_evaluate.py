@@ -49,6 +49,8 @@ COMMON_FEATURES = [
     "fveg_forest", "fveg_shrub", "fveg_herb",
     "tsf_years", "tsf_log",
     "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
+    "dist_campground_km", "dist_transmission_km", "dist_airbase_km",
+    "dist_firestation_km", "dist_road_km",
 ]
 TRACK_A_FEATURES = COMMON_FEATURES + [
     "cwd_anom_a", "aet_anom_a", "pet_anom_a", "cwd_cum3_anom_a", "cwd_cum6_anom_a",
@@ -366,6 +368,24 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
     shrub_v = fveg_shrub[valid_rows, valid_cols]
     herb_v = fveg_herb[valid_rows, valid_cols]
 
+    # Infrastructure distance features
+    INFRA_RASTERS = {
+        "dist_campground_km": ("/home/mmann1123/extra_space/Campgrounds/dist_campground.tif", 0.001),
+        "dist_transmission_km": ("/home/mmann1123/extra_space/Electrical/transmissionLines_Dist.tif", 1.0),
+        "dist_airbase_km": ("/home/mmann1123/extra_space/Fire Stations/AirBaseDist_Meters.tif", 0.001),
+        "dist_firestation_km": ("/home/mmann1123/extra_space/Fire Stations/FireStatDist_Meters.tif", 0.001),
+        "dist_road_km": ("/home/mmann1123/extra_space/Roads/PrimSecRoads_Dist_km.tif", 1.0),
+    }
+    infra_v = {}
+    for feat_name, (ipath, scale) in INFRA_RASTERS.items():
+        with rasterio.open(ipath) as src:
+            d = src.read(1).astype(np.float32)
+            nd = src.nodata
+        if nd is not None:
+            d[d == nd] = 0.0
+        d = np.maximum(d * scale, 0.0)
+        infra_v[feat_name] = d[valid_rows, valid_cols]
+
     profile = {
         "driver": "GTiff", "dtype": "float32", "width": W, "height": H,
         "count": 1, "crs": "EPSG:3310", "transform": TRANSFORM,
@@ -469,6 +489,11 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
                 tst_mechanical_full[zarr_t, valid_rows, valid_cols] / 12.0,
                 ((tst_broadcast_full[zarr_t, valid_rows, valid_cols] <= 60) |
                  (tst_mechanical_full[zarr_t, valid_rows, valid_cols] <= 60)).astype(np.float32),
+                infra_v["dist_campground_km"],
+                infra_v["dist_transmission_km"],
+                infra_v["dist_airbase_km"],
+                infra_v["dist_firestation_km"],
+                infra_v["dist_road_km"],
                 cwd_anom_v, aet_anom_v, pet_anom_v,
                 cwd_cum3, cwd_cum6,
             ])

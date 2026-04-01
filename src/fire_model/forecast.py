@@ -31,6 +31,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+import rasterio
 import zarr
 
 logger = logging.getLogger(__name__)
@@ -89,9 +90,20 @@ class FireProbabilityForecaster:
         "fveg_forest", "fveg_shrub", "fveg_herb",
         "tsf_years", "tsf_log",
         "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
+        "dist_campground_km", "dist_transmission_km", "dist_airbase_km",
+        "dist_firestation_km", "dist_road_km",
         "cwd_anom_b", "aet_anom_b", "pet_anom_b",
         "cwd_cum3_anom_b", "cwd_cum6_anom_b",
     ]
+
+    # Infrastructure distance rasters (static)
+    INFRA_RASTERS = {
+        "dist_campground_km": ("/home/mmann1123/extra_space/Campgrounds/dist_campground.tif", 0.001),
+        "dist_transmission_km": ("/home/mmann1123/extra_space/Electrical/transmissionLines_Dist.tif", 1.0),
+        "dist_airbase_km": ("/home/mmann1123/extra_space/Fire Stations/AirBaseDist_Meters.tif", 0.001),
+        "dist_firestation_km": ("/home/mmann1123/extra_space/Fire Stations/FireStatDist_Meters.tif", 0.001),
+        "dist_road_km": ("/home/mmann1123/extra_space/Roads/PrimSecRoads_Dist_km.tif", 1.0),
+    }
 
     def __init__(self, model_path, tsf_init_path, climatology_path, zarr_path,
                  tst_broadcast_init_path=None, tst_mechanical_init_path=None):
@@ -145,6 +157,16 @@ class FireProbabilityForecaster:
         else:
             self.tst_mechanical = TimeSinceFireState(
                 np.full((self.H, self.W), 60.0, dtype=np.float32), self.valid_mask, max_months=60)
+
+        # Infrastructure distances (static, pre-extract for valid pixels)
+        self.infra = {}
+        for feat_name, (ipath, scale) in self.INFRA_RASTERS.items():
+            with rasterio.open(ipath) as src:
+                d = src.read(1).astype(np.float32)
+                nd = src.nodata
+            if nd is not None:
+                d[d == nd] = 0.0
+            self.infra[feat_name] = np.maximum(d * scale, 0.0)
 
         # Climatology
         clim = np.load(climatology_path)
@@ -256,6 +278,11 @@ class FireProbabilityForecaster:
             tst_b_years[valid_idx],
             tst_m_years[valid_idx],
             any_treat[valid_idx],
+            self.infra["dist_campground_km"][valid_idx],
+            self.infra["dist_transmission_km"][valid_idx],
+            self.infra["dist_airbase_km"][valid_idx],
+            self.infra["dist_firestation_km"][valid_idx],
+            self.infra["dist_road_km"][valid_idx],
             cwd_anom[valid_idx],
             aet_anom[valid_idx],
             pet_anom[valid_idx],

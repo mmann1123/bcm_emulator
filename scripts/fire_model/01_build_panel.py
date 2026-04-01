@@ -45,6 +45,15 @@ TSF_RASTER_DIR = "/home/mmann1123/extra_space/Fires/TimeSinceFire_Raster"
 PREDICTIONS_DIR = "/home/mmann1123/extra_space/bcm_emulator/outputs/fire_model/predictions"
 OUTPUT_DIR = "/home/mmann1123/extra_space/bcm_emulator/outputs/fire_model"
 
+# Infrastructure distance rasters (static, all on BCM grid 1209x941)
+INFRA_RASTERS = {
+    "dist_campground_km": ("/home/mmann1123/extra_space/Campgrounds/dist_campground.tif", 0.001),  # m -> km
+    "dist_transmission_km": ("/home/mmann1123/extra_space/Electrical/transmissionLines_Dist.tif", 1.0),  # already km-ish (check units)
+    "dist_airbase_km": ("/home/mmann1123/extra_space/Fire Stations/AirBaseDist_Meters.tif", 0.001),  # m -> km
+    "dist_firestation_km": ("/home/mmann1123/extra_space/Fire Stations/FireStatDist_Meters.tif", 0.001),  # m -> km
+    "dist_road_km": ("/home/mmann1123/extra_space/Roads/PrimSecRoads_Dist_km.tif", 1.0),  # already km
+}
+
 # BCM grid
 H, W = 1209, 941
 TRANSFORM = Affine(1000.0, 0.0, -374495.8364, 0.0, -1000.0, 592636.6658)
@@ -291,6 +300,21 @@ def compute_time_since_treatment(treatment_raster, valid_mask, cap_years=7):
         state[treated] = 0.0
 
     return tst, state
+
+
+def load_infra_rasters():
+    """Load infrastructure distance rasters, convert to km."""
+    infra = {}
+    for feat_name, (path, scale) in INFRA_RASTERS.items():
+        with rasterio.open(path) as src:
+            data = src.read(1).astype(np.float32)
+            nodata = src.nodata
+        if nodata is not None:
+            data[data == nodata] = 0.0
+        data = np.maximum(data * scale, 0.0)  # convert units, clamp
+        infra[feat_name] = data
+        logger.info(f"  {feat_name}: range [{data[data>0].min():.1f}, {data.max():.1f}] km")
+    return infra
 
 
 def build_fveg_broad(store):
@@ -565,6 +589,12 @@ def main():
     features["elev"] = static[0, all_r, all_c]
     features["aridity_index"] = static[8, all_r, all_c]
     features["windward_index"] = static[12, all_r, all_c]
+
+    # Infrastructure distance features
+    logger.info("Loading infrastructure distance rasters...")
+    infra = load_infra_rasters()
+    for feat_name, data in infra.items():
+        features[feat_name] = data[all_r, all_c]
 
     # FVEG broad categories
     fveg_broad = build_fveg_broad(store)

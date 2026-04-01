@@ -36,6 +36,8 @@ COMMON_FEATURES = [
     "fveg_forest", "fveg_shrub", "fveg_herb",
     "tsf_years", "tsf_log",
     "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
+    "dist_campground_km", "dist_transmission_km", "dist_airbase_km",
+    "dist_firestation_km", "dist_road_km",
 ]
 
 # Track-specific features (hydrology anomalies)
