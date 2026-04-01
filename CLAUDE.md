@@ -103,11 +103,16 @@ Teacher forcing: channels 7 (pck_prev) and 8 (aet_prev) are swapped between grou
 
 Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, metrics), config.yaml, best_model.pt, training_history.json, metrics.json, spatial_maps/. `compare_snapshots()` diffs metrics between runs.
 
-### Fire Probability Model (scripts/fire_model/, src/fire_model/)
+### Fire Probability Model (separate project)
 
-Baseline logistic regression predicting monthly wildfire ignition at 1km pixels. Two tracks compared: Track A (BCMv8 targets) vs Track B (emulator predictions). Pipeline: `00_export_predictions.py` → `01_build_panel.py` → `02_train_model.py` → `03_evaluate.py`. Result: **Delta AUC = +0.002 — emulator is operationally viable** (overall AUC 0.923). Features include climate inputs, hydrology anomalies, time since fire, prescribed burn treatment history, infrastructure distances (campgrounds, roads, transmission lines, fire stations, airbases), SERGOM housing density, and vegetation type.
+The fire model has been moved to its own project at `/home/mmann1123/extra_space/fire_model/`. See that project's `CLAUDE.md` for full documentation.
 
-`src/fire_model/forecast.py` provides `FireProbabilityForecaster` for operational forward forecasting. **Note:** Future forecasts should use projected SERGOM housing density rasters (`SERGOM_Housing/Interpolated_New/bhc{year}.tif`, available through 2099) to capture WUI expansion effects on ignition probability. See `scripts/fire_model/README.md` for full documentation.
+**Bridge script:** `scripts/fire_model/00_export_predictions.py` remains here — it exports emulator predictions as `.npy` files for the fire model to consume. Run it before any fire model scripts:
+
+```bash
+conda run -n deep_field python scripts/fire_model/00_export_predictions.py \
+    --output-dir /home/mmann1123/extra_space/fire_model/data/predictions
+```
 
 ## Configuration
 

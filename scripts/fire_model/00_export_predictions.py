@@ -33,7 +33,7 @@ def main():
     parser = argparse.ArgumentParser(description="Export emulator predictions")
     parser.add_argument("--config", default=str(PROJECT_ROOT / "config.yaml"))
     parser.add_argument("--checkpoint", default=str(PROJECT_ROOT / "checkpoints" / "best_model.pt"))
-    parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "outputs" / "fire_model" / "predictions"))
+    parser.add_argument("--output-dir", default="/home/mmann1123/extra_space/fire_model/data/predictions")
     parser.add_argument("--force", action="store_true", help="Overwrite existing predictions")
     args = parser.parse_args()
 
