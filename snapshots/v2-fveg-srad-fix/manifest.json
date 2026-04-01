@@ -1,0 +1,41 @@
+{
+  "run_id": "v2-fveg-srad-fix",
+  "created": "2026-03-15T14:20:50",
+  "git_tag": "v2-fveg-srad-fix",
+  "git_hash": "a555bc8",
+  "notes": "Fixed srad bbox to 43.5N, added FVEG CWHR embedding, 62 classes",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "c7e74ad168de9bce86a52e9085ed2e61",
+  "training_summary": {
+    "best_val_loss": 0.36934493883906405,
+    "best_epoch": 83,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.9275034666061401,
+      "kge": 0.946899125845816,
+      "rmse": 16.223257064819336,
+      "pbias": -0.7256052494049072
+    },
+    "pck": {
+      "nse": 0.9451888799667358,
+      "kge": 0.8829526301978365,
+      "rmse": 12.278949737548828,
+      "pbias": 9.375802993774414
+    },
+    "aet": {
+      "nse": 0.831299901008606,
+      "kge": 0.7519842155989132,
+      "rmse": 12.372045516967773,
+      "pbias": 6.520748615264893
+    },
+    "cwd": {
+      "nse": 0.902442991733551,
+      "kge": 0.9276664835114656,
+      "rmse": 18.17531394958496,
+      "pbias": -2.380896806716919
+    },
+    "cwd_identity_mae": NaN
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "run_id": "v21-dual-backbone",
+  "created": "2026-03-29T19:21:00",
+  "git_tag": "v21-dual-backbone",
+  "git_hash": "a1eede8",
+  "notes": "Dual backbone: main (256) + AET sub-backbone (128). AET head sees both; PET/PCK see only main. Tests architectural gradient decoupling.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5072896629255542,
+    "best_epoch": 68,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8796794414520264,
+      "kge": 0.8695110690267931,
+      "rmse": 20.900150299072266,
+      "pbias": -0.8518308401107788
+    },
+    "pck": {
+      "nse": 0.9302024245262146,
+      "kge": 0.8814879890179488,
+      "rmse": 13.856293678283691,
+      "pbias": 7.654979705810547
+    },
+    "aet": {
+      "nse": 0.8520457744598389,
+      "kge": 0.7988638101953873,
+      "rmse": 11.586370468139648,
+      "pbias": 7.835808277130127
+    },
+    "cwd": {
+      "nse": 0.9276607036590576,
+      "kge": 0.9233059648739722,
+      "rmse": 15.650918006896973,
+      "pbias": -3.308964490890503
+    },
+    "aet_p95": {
+      "rmse": 26.440975189208984,
+      "bias": -19.35881996154785,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7591152995879563
+    },
+    "aet_p99": {
+      "rmse": 32.455650329589844,
+      "bias": -28.193937301635742,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5803884939373497
+    },
+    "cwd_p95": {
+      "rmse": 9.630732536315918,
+      "bias": -3.53188419342041,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7902451343291843
+    },
+    "cwd_p99": {
+      "rmse": 6.268155574798584,
+      "bias": -2.701352119445801,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6797723655988376
+    },
+    "cwd_identity_mae": NaN
+  }
+}

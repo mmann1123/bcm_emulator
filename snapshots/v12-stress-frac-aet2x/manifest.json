@@ -1,0 +1,65 @@
+{
+  "run_id": "v12-stress-frac-aet2x",
+  "created": "2026-03-21T09:47:15",
+  "git_tag": "v12-stress-frac-aet2x",
+  "git_hash": "a0a0b97",
+  "notes": "v11-stress-frac architecture + v5-style loss weights: aet=2.0, cwd=2.0, pet_decay=0.99",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "976cea9fc3d39bd72bf55cd29b165bb0",
+  "training_summary": {
+    "best_val_loss": 0.5803832139685402,
+    "best_epoch": 6,
+    "total_epochs": 30
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8614733219146729,
+      "kge": 0.858911298192471,
+      "rmse": 22.425708770751953,
+      "pbias": -0.6468847990036011
+    },
+    "pck": {
+      "nse": 0.9134233593940735,
+      "kge": 0.7445274146325398,
+      "rmse": 15.432180404663086,
+      "pbias": 20.66454315185547
+    },
+    "aet": {
+      "nse": 0.8558823466300964,
+      "kge": 0.8246650438176035,
+      "rmse": 11.435163497924805,
+      "pbias": 7.57616662979126
+    },
+    "cwd": {
+      "nse": 0.91181480884552,
+      "kge": 0.9223475497343376,
+      "rmse": 17.280269622802734,
+      "pbias": -2.968759298324585
+    },
+    "aet_p95": {
+      "rmse": 25.27552604675293,
+      "bias": -16.638530731201172,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7649863171041388
+    },
+    "aet_p99": {
+      "rmse": 30.660249710083008,
+      "bias": -25.694263458251953,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5558092470551605
+    },
+    "cwd_p95": {
+      "rmse": 9.621888160705566,
+      "bias": -3.0459630489349365,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7899614620882428
+    },
+    "cwd_p99": {
+      "rmse": 6.418571949005127,
+      "bias": -2.703922748565674,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6898048847990037
+    },
+    "cwd_identity_mae": NaN
+  }
+}

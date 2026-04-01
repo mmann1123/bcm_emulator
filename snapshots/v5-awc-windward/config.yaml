@@ -1,0 +1,99 @@
+# BCM Emulator Configuration
+# All paths, hyperparameters, and stage definitions
+
+paths:
+  bcm_dir: /home/mmann1123/extra_space/BCM_HIST_NoModel
+  elevation_path: /home/mmann1123/extra_space/elevation srtm/SRTM_GTOPO_u30_mosaic_Clip.tif
+  prism_monthly_dir: /home/mmann1123/extra_space/bcm_emulator/data/prism_monthly
+  prism_daily_dir: /home/mmann1123/extra_space/bcm_emulator/data/prism_daily
+  daymet_dir: /home/mmann1123/extra_space/bcm_emulator/data/daymet
+  pet_sciencebase_dir: /home/mmann1123/extra_space/bcm_emulator/data/pet_sciencebase
+  zarr_store: /home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr
+  topo_solar_path: /home/mmann1123/extra_space/bcm_emulator/data/topo_solar.tif
+  ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
+  fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
+  fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
+  soil_dir: /home/mmann1123/extra_space/bcm_emulator/data/soil
+  awc_path: /home/mmann1123/extra_space/bcm_emulator/data/awc/awc_bcm.tif
+  checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
+  output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
+  snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
+
+# BCM grid reference (EPSG:3310, 1km)
+grid:
+  crs: EPSG:3310
+  height: 1209
+  width: 941
+  nodata: -9999.0
+
+# Temporal settings
+temporal:
+  train_start: "1980-01"
+  train_end: "2019-09"
+  test_start: "2019-10"
+  test_end: "2020-09"
+  sequence_length: 48  # months per training sample
+
+# Data settings
+data:
+  pixel_subsample_frac: 0.50
+  elevation_bins: 5
+  batch_size: 512
+  num_workers: 8
+  snow_threshold_celsius: 0.0
+  snow_transition_width: 2.0
+
+# Model architecture
+model:
+  backbone:
+    in_channels: 27  # 10 dynamic + 9 static + 8 fveg embedding
+    channels: [64, 128, 128, 256, 256]
+    kernel_size: 3
+    dropout: 0.1
+  fveg:
+    embed_dim: 8
+  heads:
+    pet:
+      in_channels: 256
+      activation: softplus  # guarantees PET >= 0 (physically required)
+    pck:
+      in_channels: 256
+      activation: softplus  # guarantees >= 0
+    aet_stress:
+      in_channels: 258  # 256 backbone + PET + PCK
+
+# Training
+training:
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: cosine
+  warmup_epochs: 5
+  amp: true
+  grad_clip_norm: 1.0
+
+  # Loss weights
+  loss_type: mse  # MSE loss (pre-v6)
+  loss_weights:
+    pet_initial: 1.0    # PET already performs well
+    pck_initial: 1.0    # PCK already performs well
+    aet_initial: 2.0    # Boost — underperforming in NE
+    cwd_initial: 2.0    # Boost — underperforming on NW coast
+    pet_decay: 0.99
+    pet_floor: 0.5
+
+  # Teacher forcing curriculum
+  teacher_forcing:
+    # Epochs 1 to E/2: 100% ground truth
+    # Epochs E/2 to E: linear ramp from 100% GT to 100% predicted
+    warmup_fraction: 0.5  # fraction of epochs with 100% GT
+
+# Download settings
+download:
+  prism_base_url: "https://services.nacse.org/prism/data/public/4km"
+  sciencebase_catalog_id: "5fb2d0a1d34eb413d5e0895a"
+  sciencebase_pck_item_id: "5f29c62d82cef313ed9edb39"
+  srad_source: "terraclimate"
+  ca_bbox: [-124.5, 32.5, -114.0, 43.5]  # lon_min, lat_min, lon_max, lat_max (extends into OR to cover full BCM grid)
+  # POLARIS soil properties (ksat, sand, clay — depth-weighted mean over 0-100cm)
+  polaris_stat: "mean"

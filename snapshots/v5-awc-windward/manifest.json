@@ -1,0 +1,65 @@
+{
+  "run_id": "v5-awc-windward",
+  "created": "2026-03-16T19:50:18",
+  "git_tag": "v5-awc-windward",
+  "git_hash": "2c528ea",
+  "notes": "AWC back, windward index, higher CWD/AET loss\n  weights",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "f7270ce8d16b7d4c1cb8d8625a7249a5",
+  "training_summary": {
+    "best_val_loss": 0.5788984053200724,
+    "best_epoch": 73,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8618226647377014,
+      "kge": 0.861931485972975,
+      "rmse": 22.397415161132812,
+      "pbias": -0.4665059447288513
+    },
+    "pck": {
+      "nse": 0.9435840249061584,
+      "kge": 0.910327900478655,
+      "rmse": 12.457415580749512,
+      "pbias": 6.475859642028809
+    },
+    "aet": {
+      "nse": 0.8511072397232056,
+      "kge": 0.8139422426281531,
+      "rmse": 11.623064041137695,
+      "pbias": 7.999901294708252
+    },
+    "cwd": {
+      "nse": 0.9145787358283997,
+      "kge": 0.9260744057488326,
+      "rmse": 17.007312774658203,
+      "pbias": -2.9173924922943115
+    },
+    "aet_p95": {
+      "rmse": 25.7388858795166,
+      "bias": -17.941965103149414,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7594197483454248
+    },
+    "aet_p99": {
+      "rmse": 31.825550079345703,
+      "bias": -27.49673080444336,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5548579039316417
+    },
+    "cwd_p95": {
+      "rmse": 8.925177574157715,
+      "bias": -2.6762027740478516,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7970048362657663
+    },
+    "cwd_p99": {
+      "rmse": 5.713849067687988,
+      "bias": -2.5595762729644775,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6920881477893863
+    },
+    "cwd_identity_mae": NaN
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "run_id": "v20b-aet1.2",
+  "created": "2026-03-27T11:33:36",
+  "git_tag": "v20b-aet1.2",
+  "git_hash": "a1eede8",
+  "notes": "v19a config (huber delta=0.5, extreme_weight=0.1) with aet_initial reduced from 1.5 to 1.2. Tests whether extreme penalty now carries enough tail load that the base AET weight is partially redundant and contributing to the 13.1% pbias. Hypothesis: lower base weight reduces mean bias while extreme penalty preserves tail accuracy.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.24852895249480147,
+    "best_epoch": 79,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8254241347312927,
+      "kge": 0.8225478815466772,
+      "rmse": 25.175121307373047,
+      "pbias": 1.5080702304840088
+    },
+    "pck": {
+      "nse": 0.938482403755188,
+      "kge": 0.8008009257717025,
+      "rmse": 13.00848388671875,
+      "pbias": 16.616384506225586
+    },
+    "aet": {
+      "nse": 0.8507311940193176,
+      "kge": 0.8099224555801768,
+      "rmse": 11.637730598449707,
+      "pbias": 15.507434844970703
+    },
+    "cwd": {
+      "nse": 0.9224315285682678,
+      "kge": 0.9251550671591519,
+      "rmse": 16.20672607421875,
+      "pbias": -3.8905324935913086
+    },
+    "aet_p95": {
+      "rmse": 21.24993896484375,
+      "bias": -8.659135818481445,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7629762633758523
+    },
+    "aet_p99": {
+      "rmse": 22.724254608154297,
+      "bias": -15.01657485961914,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5727431546537975
+    },
+    "cwd_p95": {
+      "rmse": 9.019460678100586,
+      "bias": -3.307720899581909,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7911099887222988
+    },
+    "cwd_p99": {
+      "rmse": 6.142681121826172,
+      "bias": -3.363440990447998,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6683733480938213
+    },
+    "cwd_identity_mae": NaN
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "run_id": "v13-sws-rollstd",
+  "created": "2026-03-23T11:55:12",
+  "git_tag": "v13-sws-rollstd",
+  "git_hash": "281b8e7",
+  "notes": "Added 4 new dynamic channels: SWS bucket model (PPT-PET water balance), vpd_roll6_std, srad_roll6_std, tmax_roll3_std; targeting AET/CWD extreme underprediction",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "a2c3f2c1c668ad9fe9ae885ba83f8fdf",
+  "training_summary": {
+    "best_val_loss": 0.5887177385342349,
+    "best_epoch": 73,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.869899332523346,
+      "kge": 0.8657163748409074,
+      "rmse": 21.73297882080078,
+      "pbias": -1.8145841360092163
+    },
+    "pck": {
+      "nse": 0.9070361852645874,
+      "kge": 0.7526834600399595,
+      "rmse": 15.991308212280273,
+      "pbias": 19.031091690063477
+    },
+    "aet": {
+      "nse": 0.8461871147155762,
+      "kge": 0.8054480767551406,
+      "rmse": 11.813543319702148,
+      "pbias": 2.678948402404785
+    },
+    "cwd": {
+      "nse": 0.9155739545822144,
+      "kge": 0.9198190009113539,
+      "rmse": 16.907947540283203,
+      "pbias": -2.2194457054138184
+    },
+    "aet_p95": {
+      "rmse": 28.16791343688965,
+      "bias": -20.642578125,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.746048220531609
+    },
+    "aet_p99": {
+      "rmse": 34.14384460449219,
+      "bias": -29.194414138793945,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5905419196374517
+    },
+    "cwd_p95": {
+      "rmse": 10.187987327575684,
+      "bias": -3.8537967205047607,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7844575287304629
+    },
+    "cwd_p99": {
+      "rmse": 7.244053840637207,
+      "bias": -3.785184144973755,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6605549020964505
+    },
+    "cwd_identity_mae": NaN
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "run_id": "v20a-asym1.1",
+  "created": "2026-03-27T09:10:50",
+  "git_tag": "v20a-asym1.1",
+  "git_hash": "a1eede8",
+  "notes": "v19a config (huber delta=0.5, extreme_weight=0.1) with extreme_asym reduced from 1.5 to 1.1. Targets AET pbias reduction (currently 13.1%) while preserving tail gains. Hypothesis: asymmetry inflates mean bias; near-symmetric penalty retains tail correction with less global upward push.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.2548101905045236,
+    "best_epoch": 86,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.842205286026001,
+      "kge": 0.8369660907347602,
+      "rmse": 23.9345760345459,
+      "pbias": -0.20130528509616852
+    },
+    "pck": {
+      "nse": 0.9148543477058411,
+      "kge": 0.7518306567664181,
+      "rmse": 15.30411148071289,
+      "pbias": 19.353145599365234
+    },
+    "aet": {
+      "nse": 0.854732096195221,
+      "kge": 0.8385106524393604,
+      "rmse": 11.480708122253418,
+      "pbias": 8.3433837890625
+    },
+    "cwd": {
+      "nse": 0.9251399040222168,
+      "kge": 0.9264315486771849,
+      "rmse": 15.92127513885498,
+      "pbias": -2.7805428504943848
+    },
+    "aet_p95": {
+      "rmse": 24.076040267944336,
+      "bias": -13.499703407287598,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7560050787588177
+    },
+    "aet_p99": {
+      "rmse": 26.91082000732422,
+      "bias": -20.418067932128906,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5755625897289537
+    },
+    "cwd_p95": {
+      "rmse": 8.81162166595459,
+      "bias": -2.955204486846924,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7847550386416943
+    },
+    "cwd_p99": {
+      "rmse": 5.846189498901367,
+      "bias": -3.0084495544433594,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6623192416799281
+    },
+    "cwd_identity_mae": NaN
+  }
+}

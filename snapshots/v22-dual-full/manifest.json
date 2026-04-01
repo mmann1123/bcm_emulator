@@ -1,0 +1,65 @@
+{
+  "run_id": "v22-dual-full",
+  "created": "2026-03-30T12:09:52",
+  "git_tag": "v22-dual-full",
+  "git_hash": "b38d912",
+  "notes": "5-layer AET sub-backbone (RF=125mo, matches main backbone) + separate FVEG embeddings to eliminate gradient leakage. Addresses both remaining gaps from v21b: short RF and shared embedding PCK creep.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5257942131117398,
+    "best_epoch": 78,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8785198330879211,
+      "kge": 0.8640049496137268,
+      "rmse": 21.000625610351562,
+      "pbias": -1.544307827949524
+    },
+    "pck": {
+      "nse": 0.9336099028587341,
+      "kge": 0.8519176462386883,
+      "rmse": 13.513833045959473,
+      "pbias": 10.042669296264648
+    },
+    "aet": {
+      "nse": 0.8457193374633789,
+      "kge": 0.802865461177134,
+      "rmse": 11.83149242401123,
+      "pbias": 4.885533332824707
+    },
+    "cwd": {
+      "nse": 0.9249885678291321,
+      "kge": 0.9255617380746208,
+      "rmse": 15.937360763549805,
+      "pbias": -2.8521556854248047
+    },
+    "aet_p95": {
+      "rmse": 28.119091033935547,
+      "bias": -21.056903839111328,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7451902285787433
+    },
+    "aet_p99": {
+      "rmse": 36.50259017944336,
+      "bias": -32.36436080932617,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.535225641291751
+    },
+    "cwd_p95": {
+      "rmse": 9.208979606628418,
+      "bias": -2.9759771823883057,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7761376294687027
+    },
+    "cwd_p99": {
+      "rmse": 6.255614757537842,
+      "bias": -3.0522425174713135,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6507645471528403
+    },
+    "cwd_identity_mae": NaN
+  }
+}

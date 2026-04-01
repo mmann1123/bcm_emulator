@@ -1,0 +1,41 @@
+{
+  "run_id": "v4-soil-props",
+  "created": "2026-03-16T14:32:12",
+  "git_tag": "v4-soil-props",
+  "git_hash": "1e6d507",
+  "notes": "Replace AWC with ksat+sand+clay from POLARIS",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "c167e5c95fe762ff5654a862ba359f4f",
+  "training_summary": {
+    "best_val_loss": 0.3679321514573067,
+    "best_epoch": 78,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.9268390536308289,
+      "kge": 0.9439251147710266,
+      "rmse": 16.297433853149414,
+      "pbias": -0.8400158286094666
+    },
+    "pck": {
+      "nse": 0.9396204948425293,
+      "kge": 0.8634437188765356,
+      "rmse": 12.887589454650879,
+      "pbias": 11.643401145935059
+    },
+    "aet": {
+      "nse": 0.8343005180358887,
+      "kge": 0.7561610432936225,
+      "rmse": 12.261521339416504,
+      "pbias": 6.050348281860352
+    },
+    "cwd": {
+      "nse": 0.9028826951980591,
+      "kge": 0.9319404895963118,
+      "rmse": 18.13430404663086,
+      "pbias": -2.2860820293426514
+    },
+    "cwd_identity_mae": NaN
+  }
+}

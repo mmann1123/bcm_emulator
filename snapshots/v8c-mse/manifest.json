@@ -1,0 +1,65 @@
+{
+  "run_id": "v8c-mse",
+  "created": "2026-03-18T15:08:18",
+  "git_tag": "v8c-mse",
+  "git_hash": "35a5fd4",
+  "notes": "v8b soil physics channels (soil_depth, aridity, FC, WP, SOM) with MSE loss instead of Huber; extreme_weight=0.0",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "9e57b5803c2d17874e5cc5ebc25165b1",
+  "training_summary": {
+    "best_val_loss": 0.3648474486643595,
+    "best_epoch": 67,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.9266721606254578,
+      "kge": 0.9460199910360875,
+      "rmse": 16.316007614135742,
+      "pbias": -0.8664873242378235
+    },
+    "pck": {
+      "nse": 0.9303726553916931,
+      "kge": 0.9174515815154699,
+      "rmse": 13.839386940002441,
+      "pbias": 5.039727210998535
+    },
+    "aet": {
+      "nse": 0.833595871925354,
+      "kge": 0.7445298557802438,
+      "rmse": 12.287564277648926,
+      "pbias": 6.363978385925293
+    },
+    "cwd": {
+      "nse": 0.9073582291603088,
+      "kge": 0.9276627920196359,
+      "rmse": 17.711528778076172,
+      "pbias": -2.473097085952759
+    },
+    "aet_p95": {
+      "rmse": 30.640016555786133,
+      "bias": -25.479347229003906,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7645607807726771
+    },
+    "aet_p99": {
+      "rmse": 38.635807037353516,
+      "bias": -35.68202209472656,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.6017158770518741
+    },
+    "cwd_p95": {
+      "rmse": 9.006146430969238,
+      "bias": -1.322645664215088,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7934174202431279
+    },
+    "cwd_p99": {
+      "rmse": 5.957899570465088,
+      "bias": -1.2109295129776,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6864664775479139
+    },
+    "cwd_identity_mae": NaN
+  }
+}

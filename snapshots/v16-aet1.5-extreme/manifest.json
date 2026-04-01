@@ -1,0 +1,65 @@
+{
+  "run_id": "v16-aet1.5-extreme",
+  "created": "2026-03-23T22:57:10",
+  "git_tag": "v16-aet1.5-extreme",
+  "git_hash": "30ebf05",
+  "notes": "v15 base, aet_initial=1.5 (from 2.0), cwd=2.0, extreme_weight=0.05, extreme_asym=1.5, awc_total static, 15 dyn + 15 static",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "707f40099cb5c6e9568aadb91039690c",
+  "training_summary": {
+    "best_val_loss": 0.555421577074472,
+    "best_epoch": 80,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8614308834075928,
+      "kge": 0.8585118701982484,
+      "rmse": 22.42914390563965,
+      "pbias": -0.522436261177063
+    },
+    "pck": {
+      "nse": 0.9304205775260925,
+      "kge": 0.8683235987210856,
+      "rmse": 13.834624290466309,
+      "pbias": 9.69079875946045
+    },
+    "aet": {
+      "nse": 0.8480719923973083,
+      "kge": 0.8161597175633916,
+      "rmse": 11.740936279296875,
+      "pbias": 9.458988189697266
+    },
+    "cwd": {
+      "nse": 0.912213921546936,
+      "kge": 0.9197443732899155,
+      "rmse": 17.241121292114258,
+      "pbias": -3.6534583568573
+    },
+    "aet_p95": {
+      "rmse": 25.69181251525879,
+      "bias": -16.273988723754883,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.753410345030393
+    },
+    "aet_p99": {
+      "rmse": 30.18458366394043,
+      "bias": -24.916051864624023,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5443585352775328
+    },
+    "cwd_p95": {
+      "rmse": 9.579236030578613,
+      "bias": -3.7975142002105713,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7741069513536701
+    },
+    "cwd_p99": {
+      "rmse": 6.631585121154785,
+      "bias": -3.6149842739105225,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6715560783228396
+    },
+    "cwd_identity_mae": NaN
+  }
+}

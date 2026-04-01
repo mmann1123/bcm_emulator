@@ -1,0 +1,65 @@
+{
+  "run_id": "v11-stress-frac",
+  "created": "2026-03-20T16:39:10",
+  "git_tag": "v11-stress-frac",
+  "git_hash": "a0a0b97",
+  "notes": "Stress-fraction AET head: sigmoid(stress) \u00d7 Kv \u00d7 PET + correction",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "976cea9fc3d39bd72bf55cd29b165bb0",
+  "training_summary": {
+    "best_val_loss": 0.36779932307589586,
+    "best_epoch": 72,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.9293661713600159,
+      "kge": 0.9474885850975294,
+      "rmse": 16.013484954833984,
+      "pbias": -0.5830152034759521
+    },
+    "pck": {
+      "nse": 0.9444735050201416,
+      "kge": 0.951965527215305,
+      "rmse": 12.358818054199219,
+      "pbias": 3.2506496906280518
+    },
+    "aet": {
+      "nse": 0.8299699425697327,
+      "kge": 0.739041500953105,
+      "rmse": 12.420717239379883,
+      "pbias": 6.307478427886963
+    },
+    "cwd": {
+      "nse": 0.9033411741256714,
+      "kge": 0.9205248448796861,
+      "rmse": 18.091447830200195,
+      "pbias": -2.1142895221710205
+    },
+    "aet_p95": {
+      "rmse": 31.680065155029297,
+      "bias": -26.386905670166016,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7588523665701425
+    },
+    "aet_p99": {
+      "rmse": 39.955657958984375,
+      "bias": -36.88234329223633,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5850587238164426
+    },
+    "cwd_p95": {
+      "rmse": 11.047394752502441,
+      "bias": -1.8489116430282593,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7822054478907932
+    },
+    "cwd_p99": {
+      "rmse": 7.436958312988281,
+      "bias": -1.7986418008804321,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.676105306856708
+    },
+    "cwd_identity_mae": NaN
+  }
+}

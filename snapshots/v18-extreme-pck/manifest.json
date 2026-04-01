@@ -1,0 +1,65 @@
+{
+  "run_id": "v18-extreme-pck",
+  "created": "2026-03-25T13:29:02",
+  "git_tag": "v18-extreme-pck",
+  "git_hash": "a1eede8",
+  "notes": "extreme_vars=[aet,pck]. Applies extreme penalty to PCK as well, testing whether tail PCK errors (late-season snowpack) can be corrected alongside AET.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5385081466848937,
+    "best_epoch": 79,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8743245005607605,
+      "kge": 0.864203074940282,
+      "rmse": 21.36017608642578,
+      "pbias": -0.4335445761680603
+    },
+    "pck": {
+      "nse": 0.8848662376403809,
+      "kge": 0.6788223570995364,
+      "rmse": 17.796241760253906,
+      "pbias": 23.9151554107666
+    },
+    "aet": {
+      "nse": 0.8530441522598267,
+      "kge": 0.8172871848716152,
+      "rmse": 11.54721450805664,
+      "pbias": 7.594498634338379
+    },
+    "cwd": {
+      "nse": 0.923788845539093,
+      "kge": 0.93082978298252,
+      "rmse": 16.064302444458008,
+      "pbias": -2.7099759578704834
+    },
+    "aet_p95": {
+      "rmse": 25.423797607421875,
+      "bias": -16.50714683532715,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7635471047961058
+    },
+    "aet_p99": {
+      "rmse": 30.521398544311523,
+      "bias": -25.58902931213379,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5271478733156902
+    },
+    "cwd_p95": {
+      "rmse": 8.978964805603027,
+      "bias": -2.3316409587860107,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7752381808998637
+    },
+    "cwd_p99": {
+      "rmse": 6.028160572052002,
+      "bias": -2.256868600845337,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6445374662699785
+    },
+    "cwd_identity_mae": NaN
+  }
+}

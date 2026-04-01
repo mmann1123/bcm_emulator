@@ -1,0 +1,65 @@
+{
+  "run_id": "v19a-extended",
+  "created": "2026-03-31T14:19:14",
+  "git_tag": "v19a-extended",
+  "git_hash": "d26ff94",
+  "notes": "Out-of-sample evaluation Oct 2019 - Sep 2024 (60 months). Model trained on 1980-2019. CWD NSE 0.919, KGE 0.940, pbias -1.3%. PCK NSE 0.965 (best ever). AET pbias +11.6% expected for drought-era extrapolation. Remarkable generalization across 2020-2024 megadrought/megafire period.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "7b8b16652ae9317d24e52e1521e6b00b",
+  "training_summary": {
+    "best_val_loss": 0.6326055531795364,
+    "best_epoch": 75,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8633483052253723,
+      "kge": 0.8427330922972592,
+      "rmse": 22.050037384033203,
+      "pbias": 2.7904868125915527
+    },
+    "pck": {
+      "nse": 0.9647088646888733,
+      "kge": 0.9261505215846713,
+      "rmse": 22.046247482299805,
+      "pbias": -4.5452375411987305
+    },
+    "aet": {
+      "nse": 0.8243116736412048,
+      "kge": 0.7844165895867468,
+      "rmse": 12.91474437713623,
+      "pbias": 11.55321216583252
+    },
+    "cwd": {
+      "nse": 0.9190808534622192,
+      "kge": 0.9404324889192953,
+      "rmse": 16.22652816772461,
+      "pbias": -1.3445945978164673
+    },
+    "aet_p95": {
+      "rmse": 30.695985794067383,
+      "bias": -19.232194900512695,
+      "n_samples": 1445227,
+      "exceedance_hit_rate": 0.7150959676230793
+    },
+    "aet_p99": {
+      "rmse": 42.53035354614258,
+      "bias": -32.013084411621094,
+      "n_samples": 289046,
+      "exceedance_hit_rate": 0.5739017319042644
+    },
+    "cwd_p95": {
+      "rmse": 10.35433578491211,
+      "bias": -5.552972793579102,
+      "n_samples": 1445227,
+      "exceedance_hit_rate": 0.8409294872016645
+    },
+    "cwd_p99": {
+      "rmse": 8.51434326171875,
+      "bias": -5.345687389373779,
+      "n_samples": 289046,
+      "exceedance_hit_rate": 0.691768784207358
+    },
+    "cwd_identity_mae": NaN
+  }
+}

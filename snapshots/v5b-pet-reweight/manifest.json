@@ -1,0 +1,65 @@
+{
+  "run_id": "v5b-pet-reweight",
+  "created": "2026-03-16T22:26:06",
+  "git_tag": "v5b-pet-reweight",
+  "git_hash": "2c528ea",
+  "notes": "AWC+windward from v5, PET weight 1.0->1.5 to recover PET accuracy",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "f7270ce8d16b7d4c1cb8d8625a7249a5",
+  "training_summary": {
+    "best_val_loss": 0.6040002944110052,
+    "best_epoch": 100,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8678300380706787,
+      "kge": 0.8709164786325537,
+      "rmse": 21.905134201049805,
+      "pbias": -1.1426925659179688
+    },
+    "pck": {
+      "nse": 0.9384655952453613,
+      "kge": 0.8112919605969224,
+      "rmse": 13.010258674621582,
+      "pbias": 15.685371398925781
+    },
+    "aet": {
+      "nse": 0.8454606533050537,
+      "kge": 0.8235826474525907,
+      "rmse": 11.841407775878906,
+      "pbias": 3.5849227905273438
+    },
+    "cwd": {
+      "nse": 0.9110413193702698,
+      "kge": 0.9367436066239057,
+      "rmse": 17.35589027404785,
+      "pbias": -1.8101904392242432
+    },
+    "aet_p95": {
+      "rmse": 26.85773277282715,
+      "bias": -18.429218292236328,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7539258321311068
+    },
+    "aet_p99": {
+      "rmse": 31.74928855895996,
+      "bias": -26.861587524414062,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5618978430456818
+    },
+    "cwd_p95": {
+      "rmse": 8.237244606018066,
+      "bias": -1.3500044345855713,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7981637411525395
+    },
+    "cwd_p99": {
+      "rmse": 4.958994388580322,
+      "bias": -1.7851449251174927,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6797031758112503
+    },
+    "cwd_identity_mae": NaN
+  }
+}

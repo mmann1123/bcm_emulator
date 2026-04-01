@@ -1,0 +1,65 @@
+{
+  "run_id": "v7-extreme-aware",
+  "created": "2026-03-17T15:07:30",
+  "git_tag": "v7-extreme-aware",
+  "git_hash": "560cc65",
+  "notes": "Composite loss: Huber + MSE extreme penalty (z>1.28) on AET, asym 1.5x, weight=2.0",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "f7270ce8d16b7d4c1cb8d8625a7249a5",
+  "training_summary": {
+    "best_val_loss": 1.0024986621427434,
+    "best_epoch": 60,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8759549856185913,
+      "kge": 0.8807000321328735,
+      "rmse": 21.221162796020508,
+      "pbias": 3.9014406204223633
+    },
+    "pck": {
+      "nse": 0.9611809253692627,
+      "kge": 0.924198851365012,
+      "rmse": 10.33354663848877,
+      "pbias": 7.219527244567871
+    },
+    "aet": {
+      "nse": 0.760319709777832,
+      "kge": 0.5883098997881184,
+      "rmse": 14.74687385559082,
+      "pbias": 40.33182907104492
+    },
+    "cwd": {
+      "nse": 0.8303084969520569,
+      "kge": 0.8615251497325963,
+      "rmse": 23.970809936523438,
+      "pbias": -11.142424583435059
+    },
+    "aet_p95": {
+      "rmse": 17.312368392944336,
+      "bias": -2.4386885166168213,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7422599092881088
+    },
+    "aet_p99": {
+      "rmse": 19.35681915283203,
+      "bias": -10.859119415283203,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5433725978586131
+    },
+    "cwd_p95": {
+      "rmse": 13.106694221496582,
+      "bias": -5.658112049102783,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7460925878519092
+    },
+    "cwd_p99": {
+      "rmse": 10.29826831817627,
+      "bias": -5.559427738189697,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6514391475818169
+    },
+    "cwd_identity_mae": NaN
+  }
+}

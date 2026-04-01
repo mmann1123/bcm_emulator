@@ -1,0 +1,65 @@
+{
+  "run_id": "v17-polaris-awc",
+  "created": "2026-03-24T12:11:02",
+  "git_tag": "v17-polaris-awc",
+  "git_hash": "01491ae",
+  "notes": "POLARIS root-zone AWC (0-100cm) for SWS instead of BCMv8 full-column; dropped awc_total static (14 static); aet=1.5, extreme_weight=0.05",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5054405834644463,
+    "best_epoch": 69,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8788310289382935,
+      "kge": 0.8723258321273888,
+      "rmse": 20.973709106445312,
+      "pbias": -0.5588967204093933
+    },
+    "pck": {
+      "nse": 0.9494448304176331,
+      "kge": 0.9035850213818198,
+      "rmse": 11.792603492736816,
+      "pbias": 6.823683738708496
+    },
+    "aet": {
+      "nse": 0.8506453633308411,
+      "kge": 0.7983345103579027,
+      "rmse": 11.641077041625977,
+      "pbias": 7.177002429962158
+    },
+    "cwd": {
+      "nse": 0.9288495779037476,
+      "kge": 0.930664314267575,
+      "rmse": 15.521778106689453,
+      "pbias": -2.651238203048706
+    },
+    "aet_p95": {
+      "rmse": 26.760892868041992,
+      "bias": -19.150259017944336,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7592121696471508
+    },
+    "aet_p99": {
+      "rmse": 33.081119537353516,
+      "bias": -28.355045318603516,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5717918115302787
+    },
+    "cwd_p95": {
+      "rmse": 8.954025268554688,
+      "bias": -2.9975900650024414,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7806175752250352
+    },
+    "cwd_p99": {
+      "rmse": 5.72755241394043,
+      "bias": -2.8265302181243896,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6836296962568325
+    },
+    "cwd_identity_mae": NaN
+  }
+}

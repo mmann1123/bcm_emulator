@@ -1,0 +1,65 @@
+{
+  "run_id": "v18-extreme-asym2",
+  "created": "2026-03-25T11:06:08",
+  "git_tag": "v18-extreme-asym2",
+  "git_hash": "a1eede8",
+  "notes": "extreme_asym=2.0 (from 1.5). Stronger asymmetric penalty for underprediction vs overprediction of extremes.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5307999603814127,
+    "best_epoch": 66,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8648054599761963,
+      "kge": 0.8576971039478416,
+      "rmse": 22.15435028076172,
+      "pbias": -0.2224094718694687
+    },
+    "pck": {
+      "nse": 0.9084534645080566,
+      "kge": 0.7474369876742831,
+      "rmse": 15.868939399719238,
+      "pbias": 18.967208862304688
+    },
+    "aet": {
+      "nse": 0.8544284105300903,
+      "kge": 0.8225867271400515,
+      "rmse": 11.492701530456543,
+      "pbias": 11.152751922607422
+    },
+    "cwd": {
+      "nse": 0.9233624339103699,
+      "kge": 0.9298486314852819,
+      "rmse": 16.10918617248535,
+      "pbias": -4.009426116943359
+    },
+    "aet_p95": {
+      "rmse": 23.46344757080078,
+      "bias": -14.089123725891113,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7509332392309901
+    },
+    "aet_p99": {
+      "rmse": 26.93075180053711,
+      "bias": -21.479562759399414,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5521249545949873
+    },
+    "cwd_p95": {
+      "rmse": 8.595314025878906,
+      "bias": -2.8435254096984863,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7735430662893595
+    },
+    "cwd_p99": {
+      "rmse": 5.430631637573242,
+      "bias": -3.0375938415527344,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6827994188057843
+    },
+    "cwd_identity_mae": NaN
+  }
+}

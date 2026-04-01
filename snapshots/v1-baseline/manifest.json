@@ -1,0 +1,41 @@
+{
+  "run_id": "v1-baseline",
+  "created": "2026-03-15T09:02:30",
+  "git_tag": "v1-baseline",
+  "git_hash": "105fb34",
+  "notes": "Baseline model without FVEG, 100 epochs",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "c02aa3f239616b23b4498e59caadc8ad",
+  "training_summary": {
+    "best_val_loss": 0.6268922736247381,
+    "best_epoch": 93,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8517583608627319,
+      "kge": 0.9019035243436954,
+      "rmse": 23.198747634887695,
+      "pbias": -3.8752214908599854
+    },
+    "pck": {
+      "nse": 0.8620292544364929,
+      "kge": 0.717149991718959,
+      "rmse": 19.481435775756836,
+      "pbias": 23.33973503112793
+    },
+    "aet": {
+      "nse": 0.7902189493179321,
+      "kge": 0.7388174344611089,
+      "rmse": 13.796436309814453,
+      "pbias": 0.7814323902130127
+    },
+    "cwd": {
+      "nse": 0.8720892667770386,
+      "kge": 0.9160883737710855,
+      "rmse": 20.81163215637207,
+      "pbias": -3.6379313468933105
+    },
+    "cwd_identity_mae": NaN
+  }
+}

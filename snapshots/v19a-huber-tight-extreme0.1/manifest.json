@@ -1,0 +1,65 @@
+{
+  "run_id": "v19a-huber-tight-extreme0.1",
+  "created": "2026-03-26T19:08:23",
+  "git_tag": "v19a-huber-tight-extreme0.1",
+  "git_hash": "a1eede8",
+  "notes": "Huber delta=0.5 + extreme_weight=0.1. Combines sweep's best PCK/AET result (huber-tight) with stronger extreme penalty. Tests whether tight Huber and doubled extreme weight are synergistic for AET tails without PCK regression.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.26019471589547055,
+    "best_epoch": 75,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.825110912322998,
+      "kge": 0.8265487819774102,
+      "rmse": 25.197696685791016,
+      "pbias": 0.9829999804496765
+    },
+    "pck": {
+      "nse": 0.9482654929161072,
+      "kge": 0.8972613223078606,
+      "rmse": 11.92935562133789,
+      "pbias": 7.9606451988220215
+    },
+    "aet": {
+      "nse": 0.8580155372619629,
+      "kge": 0.8280893884628845,
+      "rmse": 11.350217819213867,
+      "pbias": 13.138408660888672
+    },
+    "cwd": {
+      "nse": 0.9252992272377014,
+      "kge": 0.9258834778722622,
+      "rmse": 15.904324531555176,
+      "pbias": -3.4673216342926025
+    },
+    "aet_p95": {
+      "rmse": 21.894786834716797,
+      "bias": -10.078649520874023,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7685116953298252
+    },
+    "aet_p99": {
+      "rmse": 23.780752182006836,
+      "bias": -16.142412185668945,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5793160707799284
+    },
+    "cwd_p95": {
+      "rmse": 8.677312850952148,
+      "bias": -3.2470667362213135,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7871904686127044
+    },
+    "cwd_p99": {
+      "rmse": 5.779834747314453,
+      "bias": -3.317148208618164,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6964125095135958
+    },
+    "cwd_identity_mae": NaN
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "run_id": "v21b-deeper-sub",
+  "created": "2026-03-30T02:23:10",
+  "git_tag": "v21b-deeper-sub",
+  "git_hash": "99e025c",
+  "notes": "Dual backbone: main (256) + deeper AET sub-backbone [32,64,128,128] (RF=61mo). Tests whether longer receptive field recovers AET P95 bias from v21's -19.4mm.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5126990086839963,
+    "best_epoch": 70,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8716816902160645,
+      "kge": 0.8597913197784643,
+      "rmse": 21.583599090576172,
+      "pbias": -0.7162793874740601
+    },
+    "pck": {
+      "nse": 0.9322423934936523,
+      "kge": 0.8552981897282583,
+      "rmse": 13.652305603027344,
+      "pbias": 11.079357147216797
+    },
+    "aet": {
+      "nse": 0.8545723557472229,
+      "kge": 0.8178424227817649,
+      "rmse": 11.487016677856445,
+      "pbias": 8.713465690612793
+    },
+    "cwd": {
+      "nse": 0.9234926700592041,
+      "kge": 0.924763451912588,
+      "rmse": 16.095489501953125,
+      "pbias": -3.5119857788085938
+    },
+    "aet_p95": {
+      "rmse": 24.896799087524414,
+      "bias": -16.00855255126953,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7566208955636973
+    },
+    "aet_p99": {
+      "rmse": 28.652982711791992,
+      "bias": -23.047861099243164,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5911127255115631
+    },
+    "cwd_p95": {
+      "rmse": 9.230798721313477,
+      "bias": -3.089590311050415,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7852428165194107
+    },
+    "cwd_p99": {
+      "rmse": 5.8345441818237305,
+      "bias": -2.771252155303955,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6778869438870823
+    },
+    "cwd_identity_mae": NaN
+  }
+}

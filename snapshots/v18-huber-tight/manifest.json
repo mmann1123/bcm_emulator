@@ -1,0 +1,65 @@
+{
+  "run_id": "v18-huber-tight",
+  "created": "2026-03-25T18:17:52",
+  "git_tag": "v18-huber-tight",
+  "git_hash": "a1eede8",
+  "notes": "loss_type=huber, huber_delta=0.5. Tighter delta means MSE regime only for errors <0.5 sigma, MAE for larger. More aggressive outlier robustness than delta=1.35.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.23189834832765494,
+    "best_epoch": 76,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8451609015464783,
+      "kge": 0.8401650493549426,
+      "rmse": 23.709360122680664,
+      "pbias": -0.1898403912782669
+    },
+    "pck": {
+      "nse": 0.9522785544395447,
+      "kge": 0.8717186013052957,
+      "rmse": 11.457337379455566,
+      "pbias": 10.42466926574707
+    },
+    "aet": {
+      "nse": 0.8553497195243835,
+      "kge": 0.8263886351272283,
+      "rmse": 11.45627498626709,
+      "pbias": 9.371017456054688
+    },
+    "cwd": {
+      "nse": 0.9268664717674255,
+      "kge": 0.925941704392502,
+      "rmse": 15.73659896850586,
+      "pbias": -3.2113168239593506
+    },
+    "aet_p95": {
+      "rmse": 24.164108276367188,
+      "bias": -13.54644775390625,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7593090397063453
+    },
+    "aet_p99": {
+      "rmse": 27.688581466674805,
+      "bias": -20.74960708618164,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5435974607787176
+    },
+    "cwd_p95": {
+      "rmse": 9.391329765319824,
+      "bias": -3.812934637069702,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.7701251617277716
+    },
+    "cwd_p99": {
+      "rmse": 6.525381088256836,
+      "bias": -3.558748722076416,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6529094305680482
+    },
+    "cwd_identity_mae": NaN
+  }
+}

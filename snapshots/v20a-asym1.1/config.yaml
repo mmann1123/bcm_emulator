@@ -1,0 +1,113 @@
+# BCM Emulator Configuration
+# All paths, hyperparameters, and stage definitions
+
+paths:
+  bcm_dir: /home/mmann1123/extra_space/BCM_HIST_NoModel
+  elevation_path: /home/mmann1123/extra_space/elevation srtm/SRTM_GTOPO_u30_mosaic_Clip.tif
+  prism_monthly_dir: /home/mmann1123/extra_space/bcm_emulator/data/prism_monthly
+  prism_daily_dir: /home/mmann1123/extra_space/bcm_emulator/data/prism_daily
+  daymet_dir: /home/mmann1123/extra_space/bcm_emulator/data/daymet
+  pet_sciencebase_dir: /home/mmann1123/extra_space/bcm_emulator/data/pet_sciencebase
+  zarr_store: /home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr
+  topo_solar_path: /home/mmann1123/extra_space/bcm_emulator/data/topo_solar.tif
+  ecoregion_path: /home/mmann1123/extra_space/Regions/ca_eco_l3.tif
+  fveg_dir: /home/mmann1123/extra_space/bcm_emulator/data/fveg
+  fveg_vat_csv: /home/mmann1123/extra_space/fveg/fveg_vat.csv
+  soil_dir: /home/mmann1123/extra_space/bcm_emulator/data/soil
+  awc_path: /home/mmann1123/extra_space/bcm_emulator/data/awc/awc_bcm.tif
+  soil_depth_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_thck4_v8.tif
+  aridity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_aridity_v8.tif
+  field_capacity_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp0010_v8.tif
+  wilting_point_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_mp6000_v8.tif
+  mean_annual_ppt_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/InputFiles/ca_pptaveann.asc
+  checkpoint_dir: /home/mmann1123/extra_space/bcm_emulator/checkpoints
+  output_dir: /home/mmann1123/extra_space/bcm_emulator/outputs
+  snapshot_dir: /home/mmann1123/extra_space/bcm_emulator/snapshots
+  kv_table_path: /home/mmann1123/extra_space/BCM_HIST_NoModel/bcmv8_kv_table.json
+
+# BCM grid reference (EPSG:3310, 1km)
+grid:
+  crs: EPSG:3310
+  height: 1209
+  width: 941
+  nodata: -9999.0
+
+# Temporal settings
+temporal:
+  train_start: "1980-01"
+  train_end: "2019-09"
+  test_start: "2019-10"
+  test_end: "2020-09"
+  sequence_length: 48  # months per training sample
+
+# Data settings
+data:
+  pixel_subsample_frac: 0.50
+  elevation_bins: 5
+  batch_size: 512
+  num_workers: 8
+  snow_threshold_celsius: 0.0
+  snow_transition_width: 2.0
+
+# Model architecture
+model:
+  backbone:
+    in_channels: 35  # 14 dynamic + 13 static + 8 fveg embedding (KBDI routed separately; SWS + 3 rolling std; awc_total dropped)
+    channels: [64, 128, 128, 256, 256]
+    kernel_size: 3
+    dropout: 0.1
+  fveg:
+    embed_dim: 8
+  heads:
+    pet:
+      in_channels: 256
+      activation: softplus  # guarantees PET >= 0 (physically required)
+    pck:
+      in_channels: 256
+      activation: softplus  # guarantees >= 0
+    aet_stress:
+      bb_channels: 256
+      hidden_dim: 32  # stress_net and correction_net hidden size
+      dropout: 0.1
+
+# Training
+training:
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: cosine
+  warmup_epochs: 5
+  amp: true
+  grad_clip_norm: 1.0
+
+  loss_type: huber  # "mse" (v1-v5b) or "huber" (v6+)
+
+  # Loss weights (v5-style AET/CWD boost + PET decay)
+  loss_weights:
+    pet_initial: 1.0
+    pck_initial: 1.0
+    aet_initial: 1.5
+    cwd_initial: 2.0
+    pet_decay: 0.99
+    pet_floor: 0.5
+    huber_delta: 0.5   # MSE for errors < 1.35σ, MAE for errors > 1.35σ
+    extreme_threshold: 1.28  # z-score cutoff for extreme penalty (~P90)
+    extreme_weight: 0.1     # mild extreme penalty (v15+)
+    extreme_vars: ["aet"]    # variables to apply extreme penalty to
+    extreme_asym: 1.1        # underprediction penalized 1.5x more
+
+  # Teacher forcing curriculum
+  teacher_forcing:
+    # Epochs 1 to E/2: 100% ground truth
+    # Epochs E/2 to E: linear ramp from 100% GT to 100% predicted
+    warmup_fraction: 0.5  # fraction of epochs with 100% GT
+
+# Download settings
+download:
+  prism_base_url: "https://services.nacse.org/prism/data/public/4km"
+  sciencebase_catalog_id: "5fb2d0a1d34eb413d5e0895a"
+  sciencebase_pck_item_id: "5f29c62d82cef313ed9edb39"
+  srad_source: "terraclimate"
+  ca_bbox: [-124.5, 32.5, -114.0, 43.5]  # lon_min, lat_min, lon_max, lat_max (extends into OR to cover full BCM grid)
+  # POLARIS soil properties (ksat, sand, clay — depth-weighted mean over 0-100cm)
+  polaris_stat: "mean"

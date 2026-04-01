@@ -1,0 +1,65 @@
+{
+  "run_id": "v18-epochs150",
+  "created": "2026-03-26T04:59:48",
+  "git_tag": "v18-epochs150",
+  "git_hash": "a1eede8",
+  "notes": "epochs=150 (from 100). Tests whether best epoch near 91 (v14) indicates underfitting given the richer 15-channel feature set.",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "ed20e202de3115491c840ab17efa2727",
+  "training_summary": {
+    "best_val_loss": 0.5075034439057554,
+    "best_epoch": 99,
+    "total_epochs": 150
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.8724974989891052,
+      "kge": 0.863205533016466,
+      "rmse": 21.514875411987305,
+      "pbias": -1.1635187864303589
+    },
+    "pck": {
+      "nse": 0.9253157377243042,
+      "kge": 0.7947392200270018,
+      "rmse": 14.333144187927246,
+      "pbias": 15.190240859985352
+    },
+    "aet": {
+      "nse": 0.856584906578064,
+      "kge": 0.8173742576951406,
+      "rmse": 11.407258033752441,
+      "pbias": 9.914793014526367
+    },
+    "cwd": {
+      "nse": 0.9239750504493713,
+      "kge": 0.921860504808742,
+      "rmse": 16.044666290283203,
+      "pbias": -4.604079246520996
+    },
+    "aet_p95": {
+      "rmse": 24.040693283081055,
+      "bias": -15.230147361755371,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7617377104761509
+    },
+    "aet_p99": {
+      "rmse": 28.582460403442383,
+      "bias": -23.509078979492188,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5717572172348779
+    },
+    "cwd_p95": {
+      "rmse": 9.512412071228027,
+      "bias": -3.8898041248321533,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.787709381248573
+    },
+    "cwd_p99": {
+      "rmse": 6.320982456207275,
+      "bias": -3.0129048824310303,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.6908600290597108
+    },
+    "cwd_identity_mae": NaN
+  }
+}

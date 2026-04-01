@@ -1,0 +1,65 @@
+{
+  "run_id": "v11-kv-aet",
+  "created": "2026-03-20T14:18:24",
+  "git_tag": "v11-kv-aet",
+  "git_hash": "74e9cb9",
+  "notes": "BCM Table 6 Kv as time-varying channel at AET head",
+  "zarr_store": "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr",
+  "zarr_md5_meta": "976cea9fc3d39bd72bf55cd29b165bb0",
+  "training_summary": {
+    "best_val_loss": 0.37037465925429275,
+    "best_epoch": 66,
+    "total_epochs": 100
+  },
+  "metrics_summary": {
+    "pet": {
+      "nse": 0.9283252358436584,
+      "kge": 0.9419580764024469,
+      "rmse": 16.13105010986328,
+      "pbias": -0.9058802127838135
+    },
+    "pck": {
+      "nse": 0.9302959442138672,
+      "kge": 0.8708710328950435,
+      "rmse": 13.847006797790527,
+      "pbias": 8.657341003417969
+    },
+    "aet": {
+      "nse": 0.8345654606819153,
+      "kge": 0.7453616295482834,
+      "rmse": 12.251715660095215,
+      "pbias": 10.042891502380371
+    },
+    "cwd": {
+      "nse": 0.8999122977256775,
+      "kge": 0.9148705467791555,
+      "rmse": 18.409543991088867,
+      "pbias": -4.109996318817139
+    },
+    "aet_p95": {
+      "rmse": 29.000370025634766,
+      "bias": -23.411073684692383,
+      "n_samples": 289047,
+      "exceedance_hit_rate": 0.7639172868080277
+    },
+    "aet_p99": {
+      "rmse": 36.37938690185547,
+      "bias": -33.31153106689453,
+      "n_samples": 57813,
+      "exceedance_hit_rate": 0.5918392057149776
+    },
+    "cwd_p95": {
+      "rmse": 9.734682083129883,
+      "bias": -2.5539300441741943,
+      "n_samples": 289066,
+      "exceedance_hit_rate": 0.8017096441643085
+    },
+    "cwd_p99": {
+      "rmse": 6.418118476867676,
+      "bias": -2.01070499420166,
+      "n_samples": 57812,
+      "exceedance_hit_rate": 0.7131737355566319
+    },
+    "cwd_identity_mae": NaN
+  }
+}
