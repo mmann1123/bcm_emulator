@@ -38,6 +38,7 @@ COMMON_FEATURES = [
     "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
     "dist_campground_km", "dist_transmission_km", "dist_airbase_km",
     "dist_firestation_km", "dist_road_km",
+    "housing_density", "log_housing_density",
 ]
 
 # Track-specific features (hydrology anomalies)

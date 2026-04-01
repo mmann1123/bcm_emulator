@@ -105,7 +105,9 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 ### Fire Probability Model (scripts/fire_model/, src/fire_model/)
 
-Baseline logistic regression predicting monthly wildfire ignition at 1km pixels. Two tracks compared: Track A (BCMv8 targets) vs Track B (emulator predictions). Pipeline: `00_export_predictions.py` → `01_build_panel.py` → `02_train_model.py` → `03_evaluate.py`. Result: **Delta AUC = +0.0008 — emulator is operationally viable** (overall AUC 0.913). `src/fire_model/forecast.py` provides `FireProbabilityForecaster` for operational forward forecasting. See `scripts/fire_model/README.md` for full documentation.
+Baseline logistic regression predicting monthly wildfire ignition at 1km pixels. Two tracks compared: Track A (BCMv8 targets) vs Track B (emulator predictions). Pipeline: `00_export_predictions.py` → `01_build_panel.py` → `02_train_model.py` → `03_evaluate.py`. Result: **Delta AUC = +0.002 — emulator is operationally viable** (overall AUC 0.923). Features include climate inputs, hydrology anomalies, time since fire, prescribed burn treatment history, infrastructure distances (campgrounds, roads, transmission lines, fire stations, airbases), SERGOM housing density, and vegetation type.
+
+`src/fire_model/forecast.py` provides `FireProbabilityForecaster` for operational forward forecasting. **Note:** Future forecasts should use projected SERGOM housing density rasters (`SERGOM_Housing/Interpolated_New/bhc{year}.tif`, available through 2099) to capture WUI expansion effects on ignition probability. See `scripts/fire_model/README.md` for full documentation.
 
 ## Configuration
 

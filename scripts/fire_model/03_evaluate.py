@@ -51,6 +51,7 @@ COMMON_FEATURES = [
     "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
     "dist_campground_km", "dist_transmission_km", "dist_airbase_km",
     "dist_firestation_km", "dist_road_km",
+    "housing_density", "log_housing_density",
 ]
 TRACK_A_FEATURES = COMMON_FEATURES + [
     "cwd_anom_a", "aet_anom_a", "pet_anom_a", "cwd_cum3_anom_a", "cwd_cum6_anom_a",
@@ -376,6 +377,19 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
         "dist_firestation_km": ("/home/mmann1123/extra_space/Fire Stations/FireStatDist_Meters.tif", 0.001),
         "dist_road_km": ("/home/mmann1123/extra_space/Roads/PrimSecRoads_Dist_km.tif", 1.0),
     }
+    # SERGOM housing density (load all needed years)
+    SERGOM_DIR = "/home/mmann1123/extra_space/SERGOM_Housing/Interpolated_New"
+    sergom_cache = {}
+    def _get_housing(year):
+        if year not in sergom_cache:
+            p = Path(SERGOM_DIR) / f"bhc{year}.tif"
+            if p.exists():
+                with rasterio.open(str(p)) as src:
+                    sergom_cache[year] = np.maximum(src.read(1).astype(np.float32), 0.0)
+            else:
+                sergom_cache[year] = np.zeros((H, W), dtype=np.float32)
+        return sergom_cache[year]
+
     infra_v = {}
     for feat_name, (ipath, scale) in INFRA_RASTERS.items():
         with rasterio.open(ipath) as src:
@@ -494,6 +508,8 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
                 infra_v["dist_airbase_km"],
                 infra_v["dist_firestation_km"],
                 infra_v["dist_road_km"],
+                _get_housing(year)[valid_rows, valid_cols],
+                np.log1p(_get_housing(year)[valid_rows, valid_cols]),
                 cwd_anom_v, aet_anom_v, pet_anom_v,
                 cwd_cum3, cwd_cum6,
             ])

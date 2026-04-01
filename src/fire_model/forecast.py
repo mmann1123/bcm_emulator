@@ -92,6 +92,7 @@ class FireProbabilityForecaster:
         "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
         "dist_campground_km", "dist_transmission_km", "dist_airbase_km",
         "dist_firestation_km", "dist_road_km",
+        "housing_density", "log_housing_density",
         "cwd_anom_b", "aet_anom_b", "pet_anom_b",
         "cwd_cum3_anom_b", "cwd_cum6_anom_b",
     ]
@@ -104,6 +105,9 @@ class FireProbabilityForecaster:
         "dist_firestation_km": ("/home/mmann1123/extra_space/Fire Stations/FireStatDist_Meters.tif", 0.001),
         "dist_road_km": ("/home/mmann1123/extra_space/Roads/PrimSecRoads_Dist_km.tif", 1.0),
     }
+
+    # SERGOM housing density directory (annual projections through 2099)
+    SERGOM_DIR = "/home/mmann1123/extra_space/SERGOM_Housing/Interpolated_New"
 
     def __init__(self, model_path, tsf_init_path, climatology_path, zarr_path,
                  tst_broadcast_init_path=None, tst_mechanical_init_path=None):
@@ -174,6 +178,9 @@ class FireProbabilityForecaster:
         self.aet_clim = clim["aet"]
         self.pet_clim = clim["pet"]
 
+        # SERGOM housing density cache
+        self._housing_cache = {}
+
         # Rolling buffer for cumulative CWD anomalies
         self.cwd_anom_buffer = deque(maxlen=6)
 
@@ -231,6 +238,17 @@ class FireProbabilityForecaster:
         # TSF features (before incrementing)
         tsf_years, tsf_log = self.tsf_state.step()
 
+        # Housing density for this year (from SERGOM projections)
+        if year not in self._housing_cache:
+            p = Path(self.SERGOM_DIR) / f"bhc{year}.tif"
+            if p.exists():
+                with rasterio.open(str(p)) as src:
+                    self._housing_cache[year] = np.maximum(src.read(1).astype(np.float32), 0.0)
+            else:
+                logger.warning(f"SERGOM housing not found for {year}, using zeros")
+                self._housing_cache[year] = np.zeros((self.H, self.W), dtype=np.float32)
+        housing = self._housing_cache[year]
+
         # Treatment features (before incrementing — deterministic, no resets)
         tst_b_years, _ = self.tst_broadcast.step()
         tst_m_years, _ = self.tst_mechanical.step()
@@ -283,6 +301,8 @@ class FireProbabilityForecaster:
             self.infra["dist_airbase_km"][valid_idx],
             self.infra["dist_firestation_km"][valid_idx],
             self.infra["dist_road_km"][valid_idx],
+            housing[valid_idx],
+            np.log1p(housing[valid_idx]),
             cwd_anom[valid_idx],
             aet_anom[valid_idx],
             pet_anom[valid_idx],

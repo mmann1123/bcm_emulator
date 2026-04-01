@@ -45,6 +45,9 @@ TSF_RASTER_DIR = "/home/mmann1123/extra_space/Fires/TimeSinceFire_Raster"
 PREDICTIONS_DIR = "/home/mmann1123/extra_space/bcm_emulator/outputs/fire_model/predictions"
 OUTPUT_DIR = "/home/mmann1123/extra_space/bcm_emulator/outputs/fire_model"
 
+# SERGOM housing density (time-varying annual rasters, units/km² on BCM grid)
+SERGOM_DIR = "/home/mmann1123/extra_space/SERGOM_Housing/Interpolated_New"
+
 # Infrastructure distance rasters (static, all on BCM grid 1209x941)
 INFRA_RASTERS = {
     "dist_campground_km": ("/home/mmann1123/extra_space/Campgrounds/dist_campground.tif", 0.001),  # m -> km
@@ -300,6 +303,39 @@ def compute_time_since_treatment(treatment_raster, valid_mask, cap_years=7):
         state[treated] = 0.0
 
     return tst, state
+
+
+def load_sergom_housing(years_needed):
+    """Load SERGOM housing density rasters for needed years.
+
+    Returns dict {year: (H, W) float32 array} of housing units/km².
+    For years beyond available data, uses the last available year.
+    """
+    sergom_dir = Path(SERGOM_DIR)
+    housing = {}
+    last_available = None
+
+    for year in sorted(set(years_needed)):
+        path = sergom_dir / f"bhc{year}.tif"
+        if path.exists():
+            with rasterio.open(str(path)) as src:
+                data = src.read(1).astype(np.float32)
+            data = np.maximum(data, 0.0)
+            housing[year] = data
+            last_available = data
+        elif last_available is not None:
+            housing[year] = last_available
+        else:
+            housing[year] = np.zeros((H, W), dtype=np.float32)
+
+    years_loaded = [y for y in housing if (sergom_dir / f"bhc{y}.tif").exists()]
+    logger.info(f"SERGOM housing: {len(housing)} years loaded "
+                f"({min(years_loaded)}-{max(years_loaded)} from files)")
+    sample_year = max(years_loaded)
+    v = housing[sample_year]
+    logger.info(f"  {sample_year}: mean={v[v>0].mean():.1f} units/km², "
+                f"max={v.max():.0f}, {(v>0).sum()} pixels with housing")
+    return housing
 
 
 def load_infra_rasters():
@@ -595,6 +631,17 @@ def main():
     infra = load_infra_rasters()
     for feat_name, data in infra.items():
         features[feat_name] = data[all_r, all_c]
+
+    # SERGOM housing density (time-varying by year)
+    logger.info("Loading SERGOM housing density...")
+    unique_years = sorted(set(all_year))
+    housing = load_sergom_housing(unique_years)
+    housing_arr = np.zeros(n_samples, dtype=np.float32)
+    for yr in unique_years:
+        yr_mask = all_year == yr
+        housing_arr[yr_mask] = housing[yr][all_r[yr_mask], all_c[yr_mask]]
+    features["housing_density"] = housing_arr
+    features["log_housing_density"] = np.log1p(housing_arr)
 
     # FVEG broad categories
     fveg_broad = build_fveg_broad(store)
