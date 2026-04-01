@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import rasterio
 import zarr
 from sklearn.metrics import (
     average_precision_score,
@@ -463,6 +464,91 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
     logger.info(f"  Spatial maps saved to {track_dir}")
 
 
+def _make_comparison_figure(wy, prob_map, burned_mask, valid_mask, threshold, track_name, out_path):
+    """3-panel figure: predicted probability, overlap map, actual fires."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+
+    pred_bool = (prob_map >= threshold) & valid_mask
+    actual_bool = burned_mask & valid_mask
+
+    fig, axes = plt.subplots(1, 3, figsize=(20, 8))
+
+    # Panel 1: probability
+    prob_display = np.ma.masked_where(~valid_mask, prob_map)
+    im = axes[0].imshow(prob_display, cmap="YlOrRd", vmin=0, vmax=0.15, origin="upper")
+    axes[0].set_title(f"Predicted Fire Probability\n{track_name} — WY{wy}", fontsize=11)
+    plt.colorbar(im, ax=axes[0], shrink=0.6, label="Probability")
+
+    # Panel 2: overlap
+    overlay = np.full((H, W, 3), 0.9, dtype=np.float32)
+    overlay[~valid_mask] = 1.0
+    pred_only = pred_bool & ~actual_bool
+    actual_only = actual_bool & ~pred_bool
+    both = pred_bool & actual_bool
+    overlay[pred_only] = [1.0, 0.6, 0.0]
+    overlay[actual_only] = [0.2, 0.4, 0.8]
+    overlay[both] = [0.8, 0.0, 0.0]
+    axes[1].imshow(overlay, origin="upper")
+    axes[1].set_title(f"Predicted vs Actual\nWY{wy} (threshold={threshold:.3f})", fontsize=11)
+    axes[1].legend(handles=[
+        Patch(facecolor=(1.0, 0.6, 0.0), label=f"Predicted only ({pred_only.sum():,} km\u00b2)"),
+        Patch(facecolor=(0.2, 0.4, 0.8), label=f"Actual only ({actual_only.sum():,} km\u00b2)"),
+        Patch(facecolor=(0.8, 0.0, 0.0), label=f"Overlap ({both.sum():,} km\u00b2)"),
+    ], loc="lower left", fontsize=9)
+
+    # Panel 3: actual
+    actual_display = np.full((H, W, 3), 0.9, dtype=np.float32)
+    actual_display[~valid_mask] = 1.0
+    actual_display[actual_bool] = [0.8, 0.0, 0.0]
+    axes[2].imshow(actual_display, origin="upper")
+    axes[2].set_title(f"Actual Fires\nWY{wy} ({actual_bool.sum():,} km\u00b2)", fontsize=11)
+
+    for ax in axes:
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    fig.savefig(str(out_path), dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _make_area_chart(area_data, threshold, out_path):
+    """Bar chart of actual vs predicted burned area by water year."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    wys = sorted(area_data.keys())
+    x = np.arange(len(wys))
+    width = 0.25
+    actual = [area_data[wy]["actual_km2"] for wy in wys]
+    pred_a = [area_data[wy].get("predicted_km2_trackA", 0) for wy in wys]
+    pred_b = [area_data[wy].get("predicted_km2_trackB", 0) for wy in wys]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(x - width, actual, width, label="Actual Burned", color="#c0392b", alpha=0.85)
+    ax.bar(x, pred_a, width, label="Predicted (BCMv8)", color="#e67e22", alpha=0.85)
+    ax.bar(x + width, pred_b, width, label="Predicted (Emulator)", color="#2980b9", alpha=0.85)
+    ax.set_xlabel("Water Year", fontsize=12)
+    ax.set_ylabel("Burned Area (km\u00b2)", fontsize=12)
+    ax.set_title(f"Actual vs Predicted Burned Area — Fire Season\n(threshold={threshold:.3f})", fontsize=13)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"WY{wy}" for wy in wys])
+    ax.legend(fontsize=11)
+    for bars in ax.containers:
+        for bar in bars:
+            h = bar.get_height()
+            if h > 0:
+                ax.text(bar.get_x() + bar.get_width() / 2., h + 50,
+                        f"{int(h):,}", ha="center", va="bottom", fontsize=8)
+    ax.set_ylim(0, max(max(actual), max(pred_a), max(pred_b)) * 1.15)
+    fig.tight_layout()
+    fig.savefig(str(out_path), dpi=150)
+    plt.close(fig)
+
+
 def main():
     logger.info("Loading panel...")
     df = pd.read_parquet(PANEL_PATH)
@@ -551,6 +637,89 @@ def main():
         print(f"\nDelta AUC = {delta_auc:+.4f} (< 0.02) — EMULATOR IS OPERATIONALLY VIABLE")
     else:
         print(f"\nDelta AUC = {delta_auc:+.4f} (>= 0.02) — emulator degrades fire skill")
+
+    # ---- Comparison maps: predicted vs actual burned area ----
+    logger.info("Generating comparison maps...")
+    comp_dir = OUTPUT_DIR / "comparison"
+    comp_dir.mkdir(exist_ok=True)
+
+    # Calibrate threshold on calib period
+    df_calib = df[df["split"] == "calib"]
+    X_calib_a = df_calib[TRACK_A_FEATURES].values
+    y_calib = df_calib["fire"].values
+    with open(model_a_path, "rb") as f:
+        model_for_thresh = pickle.load(f)
+    y_calib_prob = model_for_thresh.predict_proba(X_calib_a)[:, 1]
+    actual_rate = y_calib.mean()
+    threshold = 0.05
+    best_diff = float("inf")
+    for t in np.arange(0.001, 0.20, 0.001):
+        if abs((y_calib_prob >= t).mean() - actual_rate) < best_diff:
+            best_diff = abs((y_calib_prob >= t).mean() - actual_rate)
+            threshold = t
+    logger.info(f"  Calibrated threshold: {threshold:.3f}")
+
+    # Load actual fire data by WY
+    fire_raster = np.load(str(OUTPUT_DIR / "fire_raster.npy"), mmap_mode="r")
+    store_meta = zarr.open_group(ZARR_PATH, mode="r")
+    time_index_full = np.array(store_meta["meta/time"])
+    valid_mask = np.array(store_meta["meta/valid_mask"])
+
+    wy_burned = {}
+    for wy in range(2020, 2025):
+        burned = np.zeros((H, W), dtype=bool)
+        for m in [10, 11]:
+            ym = f"{wy-1:04d}-{m:02d}"
+            idx = np.searchsorted(time_index_full, ym)
+            if idx < len(time_index_full) and time_index_full[idx] == ym:
+                burned |= (fire_raster[idx] == 1)
+        for m in [6, 7, 8, 9]:
+            ym = f"{wy:04d}-{m:02d}"
+            idx = np.searchsorted(time_index_full, ym)
+            if idx < len(time_index_full) and time_index_full[idx] == ym:
+                burned |= (fire_raster[idx] == 1)
+        burned &= valid_mask
+        wy_burned[wy] = burned
+
+    area_data = {}
+    for track, track_label in [("trackA", "Track A (BCMv8)"), ("trackB", "Track B (Emulator)")]:
+        for wy in range(2020, 2025):
+            tif_path = maps_dir / track / f"fire_prob_WY{wy}_fire_season.tif"
+            if not tif_path.exists():
+                continue
+            with rasterio.open(str(tif_path)) as src:
+                prob_map = src.read(1)
+            prob_map[prob_map == -9999.0] = 0.0
+
+            burned_mask = wy_burned[wy]
+            actual_km2 = int(burned_mask.sum())
+            predicted_km2 = int(((prob_map >= threshold) & valid_mask).sum())
+
+            if wy not in area_data:
+                area_data[wy] = {"actual_km2": actual_km2}
+            area_data[wy][f"predicted_km2_{track}"] = predicted_km2
+
+            # Side-by-side comparison figure
+            _make_comparison_figure(wy, prob_map, burned_mask, valid_mask,
+                                   threshold, track_label,
+                                   comp_dir / f"{track}_WY{wy}_comparison.png")
+
+    # Burned area bar chart
+    _make_area_chart(area_data, threshold, comp_dir / "burned_area_comparison.png")
+
+    # Save area CSV
+    area_rows = [{"water_year": wy, **area_data[wy]} for wy in sorted(area_data.keys())]
+    pd.DataFrame(area_rows).to_csv(comp_dir / "burned_area_comparison.csv", index=False)
+
+    # Print burned area table
+    print(f"\nBURNED AREA COMPARISON (threshold={threshold:.3f})")
+    print(f"{'WY':<8} {'Actual':>10} {'BCMv8':>10} {'Emulator':>10}")
+    print("-" * 42)
+    for wy in sorted(area_data.keys()):
+        d = area_data[wy]
+        print(f"WY{wy}  {d['actual_km2']:>10,} "
+              f"{d.get('predicted_km2_trackA', 0):>10,} "
+              f"{d.get('predicted_km2_trackB', 0):>10,}")
 
     # ---- Manifest ----
     git_hash = "unknown"
