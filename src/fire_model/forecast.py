@@ -88,11 +88,13 @@ class FireProbabilityForecaster:
         "elev", "aridity_index", "windward_index",
         "fveg_forest", "fveg_shrub", "fveg_herb",
         "tsf_years", "tsf_log",
+        "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
         "cwd_anom_b", "aet_anom_b", "pet_anom_b",
         "cwd_cum3_anom_b", "cwd_cum6_anom_b",
     ]
 
-    def __init__(self, model_path, tsf_init_path, climatology_path, zarr_path):
+    def __init__(self, model_path, tsf_init_path, climatology_path, zarr_path,
+                 tst_broadcast_init_path=None, tst_mechanical_init_path=None):
         # Load model
         with open(model_path, "rb") as f:
             self.model = pickle.load(f)
@@ -127,6 +129,22 @@ class FireProbabilityForecaster:
         # TSF state
         tsf_init = np.load(tsf_init_path)
         self.tsf_state = TimeSinceFireState(tsf_init, self.valid_mask)
+
+        # Treatment states (broadcast cap=7yr=84mo, mechanical cap=5yr=60mo)
+        if tst_broadcast_init_path and Path(tst_broadcast_init_path).exists():
+            self.tst_broadcast = TimeSinceFireState(
+                np.load(tst_broadcast_init_path), self.valid_mask, max_months=84)
+        else:
+            # No treatment data — initialize at cap (never treated)
+            self.tst_broadcast = TimeSinceFireState(
+                np.full((self.H, self.W), 84.0, dtype=np.float32), self.valid_mask, max_months=84)
+
+        if tst_mechanical_init_path and Path(tst_mechanical_init_path).exists():
+            self.tst_mechanical = TimeSinceFireState(
+                np.load(tst_mechanical_init_path), self.valid_mask, max_months=60)
+        else:
+            self.tst_mechanical = TimeSinceFireState(
+                np.full((self.H, self.W), 60.0, dtype=np.float32), self.valid_mask, max_months=60)
 
         # Climatology
         clim = np.load(climatology_path)
@@ -191,6 +209,11 @@ class FireProbabilityForecaster:
         # TSF features (before incrementing)
         tsf_years, tsf_log = self.tsf_state.step()
 
+        # Treatment features (before incrementing — deterministic, no resets)
+        tst_b_years, _ = self.tst_broadcast.step()
+        tst_m_years, _ = self.tst_mechanical.step()
+        any_treat = ((tst_b_years <= 5) | (tst_m_years <= 5)).astype(np.float32)
+
         # Anomalies
         cwd_anom = bcm_outputs["cwd"] - self.cwd_clim[m_idx]
         aet_anom = bcm_outputs["aet"] - self.aet_clim[m_idx]
@@ -230,6 +253,9 @@ class FireProbabilityForecaster:
             self.fveg_herb[valid_idx],
             tsf_years[valid_idx],
             tsf_log[valid_idx],
+            tst_b_years[valid_idx],
+            tst_m_years[valid_idx],
+            any_treat[valid_idx],
             cwd_anom[valid_idx],
             aet_anom[valid_idx],
             pet_anom[valid_idx],

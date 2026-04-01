@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 ZARR_PATH = "/home/mmann1123/extra_space/bcm_emulator/data/bcm_dataset.zarr"
 FRAP_GDB = "/home/mmann1123/extra_space/Fires/fire24_1.gdb"
 FRAP_LAYER = "firep24_1"
+RXBURN_LAYER = "rxburn24_1"
 ECOREGION_TIF = "/home/mmann1123/extra_space/Regions/ca_eco_l3.tif"
 FVEG_MAP_PATH = "/home/mmann1123/extra_space/bcm_emulator/data/fveg/fveg_class_map.json"
 FVEG_VAT_PATH = "/home/mmann1123/extra_space/fveg/fveg_vat.csv"
@@ -181,6 +182,117 @@ def load_tsf_initial():
     return data, "TimeSinceFire_1983"
 
 
+def load_rxburn():
+    """Load and filter FRAP prescribed burn records."""
+    logger.info("Loading FRAP prescribed burn records...")
+    gdf = gpd.read_file(FRAP_GDB, layer=RXBURN_LAYER)
+    n_raw = len(gdf)
+
+    gdf = gdf[
+        (gdf["STATE"] == "CA")
+        & (gdf["START_DATE"].notna())
+        & (gdf["TREATED_AC"] >= 10)
+    ].copy()
+
+    gdf["start_dt"] = pd.to_datetime(gdf["START_DATE"], errors="coerce")
+    gdf = gdf[
+        gdf["start_dt"].notna()
+        & (gdf["start_dt"].dt.year >= 1984)
+        & (gdf["start_dt"].dt.year <= 2024)
+    ].copy()
+
+    gdf["year"] = gdf["start_dt"].dt.year
+    gdf["month"] = gdf["start_dt"].dt.month
+    gdf = gdf.to_crs("EPSG:3310")
+
+    gdf["is_broadcast"] = gdf["TREATMENT_TYPE"].isin([1, 2])
+    gdf["is_mechanical"] = gdf["TREATMENT_TYPE"].isin([3, 4, 5])
+
+    logger.info(f"Rxburn: {n_raw} raw -> {len(gdf)} filtered (CA, >=10 acres, 1984-2024)")
+    logger.info(f"  Broadcast/fire-use: {gdf['is_broadcast'].sum()}")
+    logger.info(f"  Mechanical: {gdf['is_mechanical'].sum()}")
+
+    # Coverage by decade
+    decades = (gdf["year"] // 10) * 10
+    for d in sorted(decades.unique()):
+        logger.info(f"  {d}s: {(decades == d).sum()} records")
+
+    return gdf
+
+
+def build_treatment_rasters(rxburn_gdf, time_index):
+    """Build binary treatment rasters for broadcast and mechanical treatments."""
+    T = len(time_index)
+    ym_to_idx = {}
+    for i, ym in enumerate(time_index):
+        y, m = int(ym[:4]), int(ym[5:7])
+        ym_to_idx[(y, m)] = i
+
+    broadcast_raster = np.zeros((T, H, W), dtype=np.uint8)
+    mechanical_raster = np.zeros((T, H, W), dtype=np.uint8)
+
+    # Group by year-month
+    broadcast_by_ym = {}
+    mechanical_by_ym = {}
+    for _, row in rxburn_gdf.iterrows():
+        if row.geometry is None:
+            continue
+        ym = (int(row["year"]), int(row["month"]))
+        if row["is_broadcast"]:
+            broadcast_by_ym.setdefault(ym, []).append(row.geometry.wkb)
+        if row["is_mechanical"]:
+            mechanical_by_ym.setdefault(ym, []).append(row.geometry.wkb)
+
+    from shapely import wkb
+
+    def rasterize_geoms(geom_wkbs):
+        shapes = [(wkb.loads(g), 1) for g in geom_wkbs]
+        return rasterio.features.rasterize(
+            shapes, out_shape=(H, W), transform=TRANSFORM,
+            fill=0, dtype="uint8", all_touched=True,
+        )
+
+    logger.info(f"Rasterizing {len(broadcast_by_ym)} broadcast treatment-months...")
+    for ym, geom_wkbs in tqdm(broadcast_by_ym.items(), desc="Broadcast treatments"):
+        t = ym_to_idx.get(ym)
+        if t is not None:
+            broadcast_raster[t] = rasterize_geoms(geom_wkbs)
+
+    logger.info(f"Rasterizing {len(mechanical_by_ym)} mechanical treatment-months...")
+    for ym, geom_wkbs in tqdm(mechanical_by_ym.items(), desc="Mechanical treatments"):
+        t = ym_to_idx.get(ym)
+        if t is not None:
+            mechanical_raster[t] = rasterize_geoms(geom_wkbs)
+
+    n_b = int(broadcast_raster.sum())
+    n_m = int(mechanical_raster.sum())
+    logger.info(f"Treatment rasters: {n_b} broadcast pixel-months, {n_m} mechanical pixel-months")
+
+    np.save(str(Path(OUTPUT_DIR) / "broadcast_raster.npy"), broadcast_raster)
+    np.save(str(Path(OUTPUT_DIR) / "mechanical_raster.npy"), mechanical_raster)
+
+    return broadcast_raster, mechanical_raster
+
+
+def compute_time_since_treatment(treatment_raster, valid_mask, cap_years=7):
+    """Compute time since last treatment (same logic as compute_time_since_fire)."""
+    max_months = int(cap_years * 12)
+    T = treatment_raster.shape[0]
+
+    state = np.full((H, W), float(max_months), dtype=np.float32)
+    state[~valid_mask] = 0.0
+
+    tst = np.zeros((T, H, W), dtype=np.float32)
+    for t in range(T):
+        tst[t] = state  # record BEFORE this month's treatments
+        state[valid_mask] += 1.0
+        state = np.minimum(state, max_months)
+        treated = (treatment_raster[t] == 1) & valid_mask
+        state[treated] = 0.0
+
+    return tst, state
+
+
 def build_fveg_broad(store):
     """Map FVEG class IDs to broad categories via LIFEFORM."""
     with open(FVEG_MAP_PATH) as f:
@@ -303,6 +415,41 @@ def main():
         json.dump(tsf_meta, f, indent=2)
     logger.info(f"TSF terminal state: mean={tsf_meta['mean_tsf_months']:.0f} months, "
                 f"{tsf_meta['pct_never_burned']*100:.1f}% never burned")
+
+    # ---- 1b2. Prescribed burn treatments ----
+    broadcast_path = out_dir / "broadcast_raster.npy"
+    mechanical_path = out_dir / "mechanical_raster.npy"
+    if broadcast_path.exists() and mechanical_path.exists() and not args.force:
+        logger.info("Loading existing treatment rasters")
+        broadcast_raster = np.load(str(broadcast_path))
+        mechanical_raster = np.load(str(mechanical_path))
+    else:
+        rxburn_gdf = load_rxburn()
+        broadcast_raster, mechanical_raster = build_treatment_rasters(rxburn_gdf, time_index)
+
+    logger.info("Computing time since treatment...")
+    tst_broadcast_full, tst_b_terminal = compute_time_since_treatment(
+        broadcast_raster, valid_mask, cap_years=7
+    )
+    tst_mechanical_full, tst_m_terminal = compute_time_since_treatment(
+        mechanical_raster, valid_mask, cap_years=5
+    )
+
+    # Slice to 1984+ and derive features
+    tst_broadcast = tst_broadcast_full[start_idx:]
+    tst_mechanical = tst_mechanical_full[start_idx:]
+    tst_broadcast_years = tst_broadcast / 12.0  # max=7.0
+    tst_mechanical_years = tst_mechanical / 12.0  # max=5.0
+    any_treatment_5yr = (
+        (tst_broadcast <= 60) | (tst_mechanical <= 60)
+    ).astype(np.float32)
+
+    # Save terminal states for forecasting
+    np.save(str(out_dir / "tst_broadcast_state_2024-09.npy"), tst_b_terminal)
+    np.save(str(out_dir / "tst_mechanical_state_2024-09.npy"), tst_m_terminal)
+    logger.info(f"Treatment states saved. Broadcast never-treated: "
+                f"{(tst_b_terminal[valid_mask] >= 84).mean()*100:.1f}%, "
+                f"Mechanical never-treated: {(tst_m_terminal[valid_mask] >= 60).mean()*100:.1f}%")
 
     # ---- 1c. Sampling ----
     logger.info("Sampling pixel-months...")
@@ -429,6 +576,11 @@ def main():
     # TSF features
     features["tsf_years"] = tsf_years[all_t, all_r, all_c]
     features["tsf_log"] = tsf_log[all_t, all_r, all_c]
+
+    # Treatment features
+    features["tst_broadcast_years"] = tst_broadcast_years[all_t, all_r, all_c]
+    features["tst_mechanical_years"] = tst_mechanical_years[all_t, all_r, all_c]
+    features["any_treatment_5yr"] = any_treatment_5yr[all_t, all_r, all_c]
 
     # Seasonal features
     features["month_sin"] = np.sin(2 * np.pi * all_month / 12).astype(np.float32)

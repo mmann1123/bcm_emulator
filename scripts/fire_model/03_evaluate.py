@@ -48,6 +48,7 @@ COMMON_FEATURES = [
     "elev", "aridity_index", "windward_index",
     "fveg_forest", "fveg_shrub", "fveg_herb",
     "tsf_years", "tsf_log",
+    "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
 ]
 TRACK_A_FEATURES = COMMON_FEATURES + [
     "cwd_anom_a", "aet_anom_a", "pet_anom_a", "cwd_cum3_anom_a", "cwd_cum6_anom_a",
@@ -299,6 +300,26 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
         burned = (fire_raster[t] == 1) & valid_mask
         tsf_state[burned] = 0.0
 
+    # Compute time since treatment inline
+    def _compute_tst(raster_path, cap_years):
+        if not Path(raster_path).exists():
+            return np.full((T_fire, H, W), cap_years * 12, dtype=np.float32)
+        tr = np.load(str(raster_path), mmap_mode="r")
+        max_m = int(cap_years * 12)
+        st = np.full((H, W), float(max_m), dtype=np.float32)
+        st[~valid_mask] = 0.0
+        tst = np.zeros((T_fire, H, W), dtype=np.float32)
+        for t in range(T_fire):
+            tst[t] = st
+            st[valid_mask] += 1.0
+            st = np.minimum(st, max_m)
+            treated = (tr[t] == 1) & valid_mask
+            st[treated] = 0.0
+        return tst
+
+    tst_broadcast_full = _compute_tst(OUTPUT_DIR / "broadcast_raster.npy", 7)
+    tst_mechanical_full = _compute_tst(OUTPUT_DIR / "mechanical_raster.npy", 5)
+
     # Load hydrology source based on track
     if track_suffix == "_b":
         pred_dir = OUTPUT_DIR / "predictions"
@@ -444,6 +465,10 @@ def save_spatial_maps(model_path, features_list, track_suffix, track_dir):
                 elev_v, aridity_v, windward_v,
                 forest_v, shrub_v, herb_v,
                 tsf_years_v, tsf_log_v,
+                tst_broadcast_full[zarr_t, valid_rows, valid_cols] / 12.0,
+                tst_mechanical_full[zarr_t, valid_rows, valid_cols] / 12.0,
+                ((tst_broadcast_full[zarr_t, valid_rows, valid_cols] <= 60) |
+                 (tst_mechanical_full[zarr_t, valid_rows, valid_cols] <= 60)).astype(np.float32),
                 cwd_anom_v, aet_anom_v, pet_anom_v,
                 cwd_cum3, cwd_cum6,
             ])

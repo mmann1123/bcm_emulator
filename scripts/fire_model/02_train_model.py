@@ -35,6 +35,7 @@ COMMON_FEATURES = [
     "elev", "aridity_index", "windward_index",
     "fveg_forest", "fveg_shrub", "fveg_herb",
     "tsf_years", "tsf_log",
+    "tst_broadcast_years", "tst_mechanical_years", "any_treatment_5yr",
 ]
 
 # Track-specific features (hydrology anomalies)
@@ -116,6 +117,17 @@ def train_track(df_train, df_calib, features, track_name):
                 logger.warning(f"  ⚠ {tsf_feat} has NEGATIVE coefficient ({c:.4f}) — unexpected!")
             else:
                 logger.info(f"  ✓ {tsf_feat} coefficient is positive ({c:.4f})")
+
+    # Verify treatment coefficients
+    for feat, expected_sign in [("tst_broadcast_years", "+"), ("tst_mechanical_years", "+"),
+                                 ("any_treatment_5yr", "-")]:
+        if feat in features:
+            c = coefs[features.index(feat)]
+            sign_ok = (c > 0 and expected_sign == "+") or (c < 0 and expected_sign == "-")
+            if sign_ok:
+                logger.info(f"  ✓ {feat} coefficient sign correct ({c:+.4f})")
+            else:
+                logger.warning(f"  ⚠ {feat} has unexpected sign ({c:+.4f}, expected {expected_sign})")
 
     return calibrated, coef_df
 
