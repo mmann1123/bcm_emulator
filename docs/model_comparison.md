@@ -1035,3 +1035,189 @@ v19a-extended  OUT-OF-SAMPLE EVAL . CWD NSE 0.919, PCK NSE 0.965  ★ PASSED OUT
                                          CONCLUSION: emulator generalizes to unseen climate conditions.
                                            Ready for fire probability modeling on v19a outputs.
 ```
+---
+
+## Fire-model-side interannual validation (2026-04-22)
+
+The fire-model project (`/home/mmann1123/extra_space/fire_model/`) exposed an independent validation channel for v19a: its v4 LogReg fire model, evaluated under Track A (BCMv8 target hydrology as inputs) vs Track B (v19a emulator hydrology as inputs), produces interannual fire-area skill at Pearson **+0.97 vs −0.01** across WY2020–2024. Track B is what v19a powers in production. The 0.97 → −0.01 collapse originally read as "the emulator's hydrology anomalies do not preserve year-to-year fire-weather signal," but a 3-mode screening diagnostic (`experiments/emulator_screening/` in the fire-model project) refines this. Short summary of what v19a looks like when scored against BCMv8 targets directly (same fire-season mean and p95 summaries as NSE/KGE use, but correlated across WYs instead of pooled across months):
+
+### Mode 1 — CA-wide fire-season summaries, WY2020–2024
+
+| variable | stat | Pearson vs BCMv8 | Spearman vs BCMv8 |
+|---|---|---:|---:|
+| aet | mean | **+0.99** | +1.00 |
+| cwd | mean | **+0.94** | +0.80 |
+| pck | mean | **+1.00** | +0.80 |
+| pet | mean | +0.74 | +0.90 |
+| aet | p95 | +0.62 | +0.20 |
+| cwd | p95 | +0.90 | +0.80 |
+| pet | p95 | +0.28 | +0.20 |
+
+**v19a reproduces BCMv8's CA-wide year-to-year signal well for AET/CWD/PCK/PET at the mean stat.** This is independent confirmation of the out-of-sample NSE/KGE numbers already documented for v19a-extended — they translate to the interannual scale when aggregated across valid CA pixels.
+
+### Mode 2 — Fire-weighted summaries (aggregation restricted to pixels that burned in each WY)
+
+Mostly still high: aet mean r=+0.96, cwd mean r=+0.96, aet p95 r=+0.95. One sign flip:
+
+- **pet p95 flips from +0.28 (CA-wide) to −0.38 (fire-weighted)** — the emulator's PET extremes at burning pixels are inversely correlated with BCMv8's.
+
+### Mode 3 — Per-L3 ecoregion Pearson vs BCMv8 (mean stat, n_pixels ≥ 500)
+
+Most ecoregions match BCMv8 well across AET/CWD, but two are clear outliers:
+
+| Ecoregion | n_pixels | aet | pet (p95) |
+|---|---:|---:|---:|
+| **81 (Sierra Nevada)** | 27,698 | **−0.06** mean / **−0.31** p95 | +0.85 |
+| **1 (Coast Range)** | 13,277 | +0.79 | **−0.79** p95 |
+| 78 (Klamath Mountains) | 32,725 | +0.89 | −0.47 p95 |
+| 4 (Cascades) | 13,828 | +0.96 | −0.33 p95 |
+
+**Actionable findings for emulator tuning:**
+
+1. **Ecoregion 81 (Sierra Nevada) has essentially zero interannual AET skill.** r=−0.06 mean, −0.31 p95. This is a major fire ecoregion; the emulator's AET anomalies here do not track BCMv8's year-to-year. Targeted loss weighting or static-feature debugging here is likely to move the needle on downstream fire skill more than broadcasting a new loss across CA.
+2. **PET extremes flip sign in at least four fire-relevant ecoregions** (Coast Range, Klamath, Cascades, Central Valley). v19a's PET p95 globally matches BCMv8 at r=+0.28 but regionally collapses. Given PET's low CV (0.007–0.03) this may be a secondary issue, but it's the variable most likely implicated if the v4 Track B failure is PET-driven.
+3. **Aggregate (CA-wide) validation is now saturated.** v19a's Pearson-vs-BCMv8 at CA-wide aggregation is at or near the ceiling for the major variables. Further emulator tuning targeting *interannual fire usability* should be scored against per-ecoregion and fire-weighted diagnostics — the CA-wide numbers will not discriminate between a good candidate and a great one.
+
+See `fire_model/docs/model_comparison.md` § "Interannual Burned-Area Variability (2026-04-21)" → "2026-04-22 addendum" for the downstream fire-skill interpretation, and `fire_model/experiments/emulator_screening/` for the script, raw CSVs, and README describing how to rescore future emulator checkpoints on the same diagnostic.
+
+### Per-pixel per-month follow-up (2026-04-22): the interannual failure is Sierra Nevada AET
+
+Follow-up diagnostic (`fire_model/experiments/emulator_screening/pixel_monthly_correlation.py`) computes per-pixel Pearson across 30 fire-season months (WY2020–2024 × Jun–Nov) between v19a and BCMv8 targets, then summarizes the distribution within each L3 ecoregion.
+
+| Variable | CA-wide median per-pixel r | Sierra Nevada (eco 81) median per-pixel r | Sierra frac \|r\| < 0.3 |
+|---|---:|---:|---:|
+| **aet** | **0.88** | **0.39** | **34%** |
+| cwd | 0.96 | 0.99 | 0.3% |
+| pet | 0.99 | 0.99 | 0.4% |
+| pck | 0.99 | — | — |
+
+**Interpretation for v19a-extended tuning:** the downstream fire-skill collapse documented in the fire-model project is effectively a **one-variable, one-ecoregion problem**. CWD and PET have near-perfect per-pixel monthly fidelity everywhere. PCK is similarly clean wherever it's nonzero. AET is the weak link, and its weakness is strongly concentrated in the Sierra Nevada (ecoregion 81, 27,698 fire-dominant pixels, median per-pixel monthly Pearson 0.39). Other AET-weak ecoregions — 14 Mojave (r=0.54), 13 Central Basin (r=0.75), 80 NW Volcanics (r=0.77) — are less fire-critical.
+
+**Actionable:** a targeted AET loss weighting in the Sierra Nevada (ecoregion 81) or ecoregion-aware training sampling, rather than a broadcast-CA AET weighting, is the single highest-leverage change for the next emulator iteration if the goal is improving downstream v4 Track B fire-area interannual skill. A statewide AET weight bump would waste capacity on regions where v19a already matches BCMv8 essentially perfectly.
+
+**Screening discipline:** future emulator candidates should be scored on per-ecoregion AET Pearson in the fire-dominant ecoregions (81 especially) rather than CA-wide aggregate AET metrics. The aggregate metrics are at the ceiling for v19a and will not discriminate a good candidate from a great one.
+
+Raw results: `fire_model/experiments/emulator_screening/results/pixel_monthly_correlation.csv` (54 rows: 4 variables × 13 ecoregions + CA-wide).
+
+### Annual-smoothing experiment confirms monthly noise is the bottleneck (2026-04-22)
+
+A direct follow-up test on the fire-model side (`fire_model/snapshots/v4-annualsmooth/`) swapped v19a's monthly emulator outputs for per-pixel per-WY means (broadcast back to all 12 months), then re-ran v4's full-surface evaluation. Result: v4 Track B's interannual Pearson vs actual annual burned area recovers from **−0.01 (raw monthly) to +0.94 (annual-smoothed)** — essentially hitting Track A's +0.97 ceiling with BCMv8 target hydrology.
+
+| Metric | v4 Track B (raw monthly v19a) | v4-annualsmooth Track B | Track A ceiling |
+|---|---:|---:|---:|
+| AUC-B | 0.858 | 0.727 | 0.859 |
+| BA ratio (total) | 2.20 | 0.12 | 1.03 |
+| **Pearson r vs fire** | **−0.012** | **+0.944** | +0.973 |
+| Spearman ρ | 0.00 | +0.70 | +0.70 |
+
+**What this means for the emulator.** The interannual fire-relevant signal is **present** in v19a — both CA-wide and at most per-pixel monthly resolutions — but its residual month-to-month noise (even at per-pixel r≈0.99 for CWD/PET/PCK everywhere) is large enough to wash out the interannual signal when propagated through a downstream 34-feature LogReg across millions of pixel-months. v19a is not fundamentally incapable of supporting interannual fire skill; it just has noise characteristics that a downstream monthly-anomaly consumer can't filter.
+
+**Two actionable paths for the next emulator iteration:**
+
+1. **Reduce month-to-month noise while preserving annual climatology.** A temporal-smoothing loss term (penalizing the emulator's deviation between adjacent months within a WY) or a two-head prediction architecture (monthly + annual) could deliver the same smoothed signal that is now being achieved post-hoc.
+2. **Deprioritize targeting the Sierra Nevada AET issue via broadcast losses.** The earlier per-pixel per-month diagnostic flagged Sierra Nevada AET (median r=0.39) as the weakest single-variable ecoregion signal; however, the annual-smoothing experiment shows this is still recoverable via temporal averaging, which means the pixel-level AET is good enough *if the downstream model is allowed to average over time*. Targeted Sierra AET loss weighting is still worthwhile as a secondary move, but the primary gain sits in reducing monthly noise system-wide.
+
+The fire-model project is pursuing a hybrid feature set (retain monthly + add annual-smoothed features) as the downstream operational fix. If that works, the emulator specification does not need to change. If it does not (i.e., the LogReg can't separate monthly intra-year signal from annual interannual signal linearly), the emulator side becomes the right place to implement temporal smoothing structurally.
+
+See `fire_model/experiments/emulator_screening/FINDINGS.md` for the full experiment writeup.
+
+### 3-month rolling mean (roll3) follow-up — downstream BA calibration fixed, interannual unchanged
+
+A centered 3-month rolling mean of v19a outputs (`fire_model/snapshots/v4-roll3smooth/`) was tested to isolate how much smoothing each of v4's two failure modes requires.
+
+| Metric | Raw monthly v19a | Roll3 v19a | Annual-smoothed v19a |
+|---|---:|---:|---:|
+| v4 Track B AUC | 0.858 | 0.849 | 0.727 |
+| v4 Track B BA | 2.20 | 0.95 | 0.12 |
+| v4 Track B Pearson vs fire | −0.012 | +0.088 | +0.944 |
+
+**Two distinct emulator-side problems, two different required averaging windows:**
+
+1. **BA calibration (downstream burned-area magnitude) is fixed by 3-month smoothing.** 2.20 → 0.95. This is a high-frequency noise problem — v19a's monthly outputs have enough within-season variance that a fire model calibrating thresholds on them produces ~2× too much predicted area. 3-month rolling strips that noise and restores BA. AUC is essentially preserved.
+2. **Interannual fire-area Pearson requires 12-month (annual) smoothing.** 3-month gives +0.09, essentially no improvement from raw's −0.01. The between-WY signal is only accessible at window length comparable to a full water year.
+
+**For emulator-side action**, this shifts the priority: if the goal is downstream BA calibration, **high-frequency noise reduction is sufficient and cheap**. A temporal-smoothness loss term penalizing month-to-month deviations (within the WY) could achieve this at training time without retraining the fire-model downstream. If the goal is interannual fire skill as well, more aggressive structural changes are needed (two-head architecture, annual-pooled supervision, or similar) — but the per-pixel diagnostic previously flagged that CWD/PET/PCK are already at per-pixel monthly r≈0.99. The 12-month window being needed isn't because the pixel-level signal is bad — it's because the downstream linear model (v4 LogReg) can't filter residual noise across millions of pixel-months without substantial averaging.
+
+Fire-model side is planning a smoothing-window sweep (roll6, roll9) and/or a hybrid feature set (monthly + WY-annual anomalies) to find the cheapest configuration that delivers both operational goals. If the fire-model side succeeds with hybrid features, the emulator spec does not need to change for BA calibration; only interannual skill pressures the emulator.
+
+See `fire_model/experiments/emulator_screening/FINDINGS.md` for the full experiment table.
+
+### Smoothing-window sweep resolves the tradeoff (2026-04-22)
+
+Full sweep across centered N-month rolling means of v19a outputs, fed to v4:
+
+| Window | v4 Track B AUC | BA | Pearson r | Spearman ρ |
+|---|---:|---:|---:|---:|
+| 1 (raw) | 0.858 | 2.20 | −0.012 | 0.00 |
+| 3 | 0.849 | 0.95 | +0.088 | +0.20 |
+| 5 | 0.832 | 0.60 | −0.152 | +0.10 |
+| 7 | 0.813 | 0.51 | −0.197 | +0.50 |
+| 9 | 0.784 | 0.39 | −0.202 | +0.50 |
+| 12 (annual) | 0.727 | 0.12 | +0.944 | +0.70 |
+
+**No single window hits all downstream operational gates simultaneously.** The AUC gate and BA gate are satisfied at 3-month smoothing; the Pearson gate requires 12-month smoothing which kills AUC and BA. Intermediate windows (5/7/9) pass through a negative-Pearson trough before recovering.
+
+**For v19a specifically, this is a clean result:** the emulator's monthly outputs already carry enough within-year information to preserve v4's AUC once high-frequency noise is stripped (3-month window is sufficient for BA calibration). The interannual signal is *also* in the emulator but requires 12-month aggregation to emerge — meaning the emulator's month-to-month variance in hydrology is high enough that v4's LogReg cannot recover the year-to-year signal without full-annual averaging.
+
+**Implications for the next emulator iteration:** the downstream fire-model project will proceed with hybrid-feature retraining (monthly + WY-annual anomaly features as separate inputs). If that delivers the operational goals, v19a's current monthly-noise characteristics are acceptable — no emulator-side change needed. If the hybrid retrain cannot bridge the gap, the emulator-side lever is either (a) a temporal-smoothness penalty at training time that preserves the interannual signal at shorter aggregation windows, or (b) a two-head architecture producing explicit monthly and annual hydrology streams.
+
+See `fire_model/experiments/emulator_screening/FINDINGS.md` for the full sweep table and decision log.
+
+### Per-ecoregion NSE ranking across all 48 snapshots (2026-04-23)
+
+Motivation: the v4-hybrid-wyanom retrain against the v19a hindcast (1982–2024, full 481,742-pixel CA grid) failed to recover Track B interannual skill — Pearson −0.12, and +0.07 after dropping `cwd_cum3/6_anom`. Hindcast values correlate well with BCMv8 at the pooled pixel-month level (OOS r = 0.944 PET / 0.905 AET / 0.960 CWD / 0.979 PCK), but the CA-wide annual-mean year-to-year correlation for PET is only 0.603 (vs 0.93–1.00 for the other three variables). This prompted a question: are any of the 48 existing emulator snapshots *measurably better* than v19a in the ecoregions where California fires actually happen?
+
+**Method.** For every snapshot with `spatial_maps/nse_{pet,aet,cwd,pck}.tif`, sample per-pixel NSE means within each EPA Level III ecoregion using `/home/mmann1123/extra_space/Regions/ca_eco_l3.tif` (codes from `US_L3CODE` attribute of `ca_eco_l3+Proj.shp`). Fire-prone ecoregions defined as `{1, 4, 5, 6, 8, 78, 85}` — Coast Range, Cascades, Sierra Nevada, Central California Foothills and Coastal Mountains, Southern California Mountains, Klamath Mountains/California High North Coast Range, Southern California/Northern Baja Coast. NSE clipped at −10 before averaging to prevent desert-pixel blow-up dominating means.
+
+**Top 20 snapshots by Sierra Nevada AET NSE** (columns are per-ecoregion mean NSE):
+
+| snapshot | AET Sierra | AET fire-prone | CWD Sierra | CWD fire-prone | PET Sierra | PET fire-prone |
+|---|---:|---:|---:|---:|---:|---:|
+| v19b-extreme0.1-petfloor0.3 | +0.878 | +0.814 | +0.883 | +0.790 | +0.779 | +0.755 |
+| v18-huber-tight | +0.877 | +0.817 | +0.897 | +0.804 | +0.765 | +0.715 |
+| v18-huber | +0.872 | +0.811 | +0.875 | +0.749 | +0.806 | +0.767 |
+| v14-sws-stress | +0.872 | +0.817 | +0.867 | +0.760 | +0.813 | +0.783 |
+| v12-stress-frac-aet2x | +0.871 | +0.820 | +0.878 | +0.764 | +0.810 | +0.777 |
+| v18-petfloor0.3 | +0.869 | +0.815 | +0.878 | +0.782 | +0.797 | +0.778 |
+| v18-balanced1.5 | +0.869 | +0.815 | +0.865 | +0.761 | +0.827 | +0.805 |
+| v13-sws-rollstd | +0.867 | +0.808 | +0.887 | +0.794 | +0.819 | +0.797 |
+| v17-polaris-awc | +0.866 | +0.813 | **+0.894** | **+0.822** | +0.815 | +0.796 |
+| v18-mse-noextreme | +0.866 | +0.804 | +0.884 | +0.782 | **+0.844** | **+0.817** |
+| v15-awc-extreme | +0.865 | +0.807 | +0.872 | +0.753 | +0.800 | +0.765 |
+| v18-cwd3-aet1.5 | +0.865 | +0.820 | +0.890 | +0.808 | +0.787 | +0.765 |
+| v8b-no-extreme | +0.864 | +0.805 | +0.810 | +0.652 | +0.920 | +0.912 |
+| v11-kv-aet | +0.864 | +0.808 | +0.809 | +0.674 | +0.920 | +0.911 |
+| v22-dual-full | +0.864 | +0.815 | +0.876 | +0.798 | +0.811 | +0.791 |
+| v19a-huber-tight-extreme0.1 | +0.864 | +0.819 | +0.891 | +0.803 | **+0.727** | **+0.678** |
+| v21b-deeper-sub | +0.864 | +0.820 | +0.880 | +0.780 | +0.805 | +0.782 |
+| v21-dual-backbone | +0.861 | +0.823 | +0.889 | +0.815 | +0.820 | +0.800 |
+
+**Three findings.**
+
+**1. Sierra AET NSE is saturated across the model family.** Top-to-bottom spread across the 18 best snapshots is 0.017 on Sierra AET (0.878 → 0.861) and 0.019 on fire-prone-mean AET (0.823 → 0.804). AET is *not* the differentiator for emulator selection — any architecture/loss variant in this family gets essentially the same Sierra AET fidelity.
+
+**2. v19a-huber-tight-extreme0.1 is a PET outlier in the wrong direction.** Among the 18 top-AET snapshots, v19a has the *worst* Sierra PET NSE (+0.727) and the *worst* fire-prone-mean PET NSE (+0.678). Compare to `v18-mse-noextreme` (+0.844 Sierra PET, +0.817 fire-prone mean) — +0.12 better PET for −0.002 worse AET. And to `v8b-no-extreme` / `v11-kv-aet` (+0.920 Sierra PET, +0.91 fire-prone mean) — +0.19 better PET, though at a real CWD cost. This matches the hindcast diagnostic: v19a's annual-mean PET range over WY2020–2024 is 106.6–108.7 mm vs BCMv8's 101.0–107.8 mm (year-to-year r = 0.603). The emulator's PET is systematically flattened, and this is visible as a per-pixel NSE penalty localized to the ecoregions the fire model cares about. v19a's `extreme_weight: 0.1` + tight Huber (δ=0.5) are doing exactly what they were designed to do — clamp AET-tail errors — and are paying for it in PET fidelity.
+
+**3. v19a's AET weakness is in the deserts, not the fire-prone zones.** Per-ecoregion AET NSE for v19a (US_L3NAME shown, FIRE tag = fire-prone):
+
+| ID | US_L3NAME | n pixels | mean AET NSE | median | p10 | |
+|---:|:---|---:|---:|---:|---:|:---|
+| 4 | Cascades | 13,828 | +0.898 | +0.957 | +0.781 | FIRE |
+| 78 | Klamath Mountains/California High North Coast Range | 32,725 | +0.898 | +0.954 | +0.759 | FIRE |
+| 5 | Sierra Nevada | 51,752 | +0.864 | +0.941 | +0.666 | FIRE |
+| 1 | Coast Range | 13,275 | +0.841 | +0.929 | +0.590 | FIRE |
+| 8 | Southern California Mountains | 15,831 | +0.802 | +0.813 | +0.676 | FIRE |
+| 6 | Central California Foothills and Coastal Mountains | 74,486 | +0.764 | +0.857 | +0.585 | FIRE |
+| 85 | Southern California/Northern Baja Coast | 20,626 | +0.666 | +0.713 | +0.407 | FIRE |
+| 7 | Central California Valley | 40,578 | +0.379 | +0.747 | −0.307 | |
+| 9 | Eastern Cascades Slopes and Foothills | 17,140 | +0.393 | +0.661 | −0.454 | |
+| 13 | Central Basin and Range | 9,412 | −0.053 | +0.464 | −1.564 | |
+| 14 | Mojave Basin and Range | 34,720 | −0.901 | +0.167 | −4.452 | |
+| 80 | Northern Basin and Range | 3,888 | +0.191 | +0.337 | −0.081 | |
+| 81 | Sonoran Basin and Range | 15,374 | −0.755 | +0.265 | −3.676 | |
+
+All seven fire-prone ecoregions have healthy AET fidelity (mean NSE 0.67–0.90). The deep negatives are all in deserts and the Central Valley — regions with minimal fire activity, where the water-balance signal is dominated by irrigation, bare-soil evaporation, or near-zero everything, and where BCMv8's own behavior is poorly constrained by observations. The "Sierra AET r ≈ 0.39" warning in the fire-model project's plan doc referred to the *p10 tail* (0.666 for Sierra, 0.407 for SoCal coast), not the regional mean — and the weakest fire-prone tails are actually in ecoregions 85 (SoCal coast) and 6 (CA Foothills), not Sierra Nevada.
+
+**Implication for emulator selection.** If the downstream fire-model Track B interannual collapse is caused by flat PET, swapping v19a → v17-polaris-awc or v18-mse-noextreme would provide +0.09 to +0.14 fire-prone PET NSE at negligible AET cost and competitive CWD. `v17-polaris-awc` has the best fire-prone CWD NSE of the top-AET set (0.822). This hypothesis is being tested: see `fire_model/snapshots/v4-hybrid-wyanom-v17-polaris-awc/` (in progress) and `fire_model/docs/model_comparison.md` § "Emulator prediction provenance" → "2026-04-23 addendum".
+
+If even the best-ranked existing snapshot fails to recover Track B interannual Pearson, the conclusion tightens to "no existing emulator in this architecture family carries the between-year signal the fire model needs" — at which point the next lever is emulator retraining with explicit interannual supervision (two-head architecture, annual-pooled loss, or temporal-smoothness penalty).
