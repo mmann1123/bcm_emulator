@@ -104,6 +104,13 @@ class BCMPixelDataset(Dataset):
         else:
             self._fveg_ids = np.zeros(self.n_pixels, dtype=np.int64)
 
+        # Month-of-year index per loaded timestep (0=Jan…11=Dec). Needed for Kv lookup
+        # and the annual-pooled loss term (Oct→Sep water-year aggregation).
+        all_times = np.array(store["meta/time"])[t_start:t_end]
+        self._month_indices = np.array(
+            [int(t[5:7]) - 1 for t in all_times], dtype=np.int64
+        )
+
         # Kv table: per-vegetation, per-month crop coefficients from BCM Table 6
         self._has_kv = False
         if kv_table_path and Path(kv_table_path).exists():
@@ -119,10 +126,6 @@ class BCMPixelDataset(Dataset):
                 cid = whrnum_to_cid.get(whrnum_str)
                 if cid is not None:
                     self._kv_lookup[cid] = vals
-            all_times = np.array(store["meta/time"])[t_start:t_end]
-            self._month_indices = np.array(
-                [int(t[5:7]) - 1 for t in all_times], dtype=np.int64
-            )
             self._has_kv = True
             logger.info(
                 f"Loaded Kv table: {self._kv_lookup.shape[0]} classes, "
@@ -237,6 +240,9 @@ class BCMPixelDataset(Dataset):
             "gt_pck_prev": torch.tensor(gt_pck_prev, dtype=torch.float32),
             "gt_aet_prev": torch.tensor(gt_aet_prev, dtype=torch.float32),
             "fveg_id": torch.tensor(self._fveg_ids[pixel_idx], dtype=torch.long),
+            "month_indices": torch.from_numpy(
+                self._month_indices[t_start:t_end].astype(np.int64)
+            ),
         }
         return result
 

@@ -1221,3 +1221,90 @@ All seven fire-prone ecoregions have healthy AET fidelity (mean NSE 0.67–0.90)
 **Implication for emulator selection.** If the downstream fire-model Track B interannual collapse is caused by flat PET, swapping v19a → v17-polaris-awc or v18-mse-noextreme would provide +0.09 to +0.14 fire-prone PET NSE at negligible AET cost and competitive CWD. `v17-polaris-awc` has the best fire-prone CWD NSE of the top-AET set (0.822). This hypothesis is being tested: see `fire_model/snapshots/v4-hybrid-wyanom-v17-polaris-awc/` (in progress) and `fire_model/docs/model_comparison.md` § "Emulator prediction provenance" → "2026-04-23 addendum".
 
 If even the best-ranked existing snapshot fails to recover Track B interannual Pearson, the conclusion tightens to "no existing emulator in this architecture family carries the between-year signal the fire model needs" — at which point the next lever is emulator retraining with explicit interannual supervision (two-head architecture, annual-pooled loss, or temporal-smoothness penalty).
+
+### v24 annual-pooled loss sweep (2026-05-04 / verdict 2026-05-05)
+
+The "annual-pooled loss" lever from the previous addendum was tested. Three runs, v17-polaris-awc + an extra MSE term on per-water-year means of PET and AET (loss += `annual_lambda * Σ MSE(annual_mean(pred), annual_mean(target))`):
+
+| Run | λ | PET NSE | PCK NSE | AET NSE | CWD NSE |
+|-----|----|---------|---------|---------|---------|
+| v17-polaris-awc | 0 | 0.879 | 0.949 | **0.851** | **0.929** |
+| v24a-annualpool-lambda1.0 | 1.0 | 0.887 | 0.957 | 0.826 | 0.917 |
+| v24b-annualpool-lambda3.0 | 3.0 | 0.895 | 0.961 | 0.820 | 0.914 |
+| v24c-annualpool-lambda10.0 | 10.0 | **0.898** | **0.965** | 0.831 | 0.901 |
+
+PET and PCK improve monotonically with λ. CWD pays the bill (algebraic CWD = PET − AET amplifies disagreement). v24a is the sweet spot at the emulator metric layer — meaningful PET/PCK lifts with small CWD regression.
+
+**Emulator-screening (interannual, CA-wide WY mean Pearson vs BCMv8) confirmed the loss does what it was designed to do:**
+
+| Emulator | PET | AET | CWD |
+|----------|-----|-----|-----|
+| v19a (collapsed case) | **0.031** | 0.995 | 0.937 |
+| v17-polaris-awc | 0.497 | 0.980 | 0.919 |
+| v24a | 0.494 | 0.986 | 0.923 |
+| v24c | 0.477 | 0.976 | 0.897 |
+| v18-mse-noextreme | **0.633** | 0.955 | 0.906 |
+
+v24a/v24c lift PET interannual from v19a's collapsed 0.031 → ~0.49 (matches v17). Surprise: `v18-mse-noextreme` already did better at 0.633 — different tradeoff (worse AET/CWD, best PET interannual). 
+
+**Fire-model end-to-end verdict (Track B Pearson, 4 cells × 2 fire models × 2 emulators):**
+
+| Fire model | + v17-polaris-awc | + v24a | + v24c |
+|---|---|---|---|
+| v4-logreg-baseline | −0.012 | **+0.048** | +0.023 |
+| v4-hybrid-wyanom (operational) | **+0.329** | +0.276 | +0.200 |
+
+On the LogReg baseline (no WY-anomaly features), v24a flips the sign — the annual-pool loss does help when the downstream consumer cannot itself average across a water year. But on the **operational** hybrid model the WY-anomaly features already extract that signal, so v24's emulator-level annual supervision is redundant; what remains is v24's small CWD regression, which costs the hybrid directly. AUC drops marginally too. v24c is also miscalibrated (ba_ratio_total = 5.23 vs ~1 for v17/v24a).
+
+**Outcome: v17-polaris-awc remains operational.** The annual-pool loss is a valid technique for closing emulator-level interannual gaps when the downstream model cannot filter monthly noise itself, but for the current operational fire stack the fire-model team's WY-anomaly feature engineering was already the right lever — adding annual supervision at training time is double-counting and pays a CWD cost. No further v24-family runs planned.
+
+Snapshots: `bcm_emulator/snapshots/v24{a,b,c}-annualpool-lambda{1p0,3p0,10p0}-v17-polaris-awc/`. Hindcast predictions for v24a/v24c at `fire_model/data/predictions_hindcast_v24{a,c}_lambda{1p0,10p0}/`. Re-evaluated fire snapshots at `fire_model/snapshots/v4-{logreg-baseline,hybrid-wyanom}-v24{a,c}/`.
+
+### v18-mse-noextreme recalibration attempt (2026-05-12)
+
+A cross-snapshot scan after the v24 sweep flagged `v4-hybrid-wyanom-v18-mse-noextreme` as a hidden winner: same hybrid LogReg model, swapped emulator, Pearson +0.459 (best of all hybrid variants, +40% over v17's +0.329), same AUC, but ba_ratio_total = 0.36 (predicts only 36% of actual burned area). Hypothesis: the calibrator is fit on WY2017-2019 (≈1.1% actual fire rate) but transferred to WY2020-2024 (≈1.8% actual rate); v18's hydrology shifts the calibrated probability distribution between calib and test years more than v17's does. A `target_rate` threshold sweep was run on cached raw probabilities — cheap, no retraining:
+
+| Variant | AUC | Pearson | cv_ratio | ba_ratio_total |
+|---|---|---|---|---|
+| v17 baseline (mae_logratio) | 0.857 | +0.329 | 0.23 | **0.99** |
+| v18 control (mae_logratio) | 0.857 | +0.459 | 0.18 | 0.36 |
+| v18 target_rate=0.005 | 0.857 | +0.460 | 0.18 | 0.36 |
+| v18 target_rate=0.011 | 0.857 | +0.492 | 0.09 | 3.21 |
+| v18 target_rate=0.014 | 0.857 | +0.492 | 0.09 | 3.21 |
+| v18 target_rate=0.018 | 0.857 | +0.576 | 0.07 | 5.41 |
+| v18 target_rate=0.025 | 0.857 | +0.576 | 0.07 | 5.41 |
+
+**No threshold satisfies ba_ratio ∈ [0.85, 1.15].** The 5× jump from 0.36 → 3.21 skips the sweet spot — there is no intermediate threshold (isotonic-regression plateaus collapse `target_rate` 0.011/0.014 and 0.018/0.025 to identical operating points). Pearson and cv_ratio both *improve* as threshold drops, but ba_ratio explodes because the structural problem is per-WY, not aggregate:
+
+- WY 2020 (21000 actual): pred climbs 3181 → 28289 → 47472 across the sweep
+- WY 2021 (12301 actual): 3532 → 28162 → 47656
+- WY 2022 (1807 actual): 2863 → **25766 (14× over-predict)** → 44093 (24× over-predict)
+- WY 2023 (2045 actual): 2301 → **23731 (12×)** → 41554 (20×)
+
+v18 cannot distinguish a high-fire year from a low-fire year in absolute probability magnitude — it only preserves the *rank* (which is what drives the +0.459 Pearson). Lowering the threshold linearly inflates all WYs, including the ones that shouldn't burn. Threshold tuning is the wrong lever.
+
+**Outcome: v17-polaris-awc remains operational.** v18's Pearson advantage is documented as a rank-order signal that can't be converted to a calibrated burned-area predictor without a deeper intervention (e.g., refit isotonic on a shifted calib window, per-WY thresholds, or a v17×v18 stacking hybrid). Pursue those only if downstream needs rank-only consumption.
+
+Artifacts at `fire_model/snapshots/v4-hybrid-wyanom-v18-mse-noextreme-thr-rate{0050,0110,0140,0180,0250}/`.
+
+### v17×v18 stacking-hybrid (2026-05-12)
+
+Follow-up to the v18 recalibration failure. The v18 Pearson advantage (rank-only) and v17's calibration (magnitude) were combined via two architectures:
+
+- **v51 (Architecture B):** post-hoc redistribution. Keep v17's per-pixel calibrated probabilities; for each test water year, allocate v17's per-WY budget in proportion to v18's per-WY shares; select top-k pixels by v17 ranking within each WY. No retraining. ~120-line script at `fire_model/scripts/v51_stacking_hybrid.py`.
+- **v52 (Architecture A):** retrain the v4-hybrid LogReg with v18 WY-anomaly features added to the v17 feature set (37 → 40 features). Required edits to `01_build_panel.py` and `src/fire_model/full_surface_eval.py` to support a second `paths.predictions_dir_secondary` and emit `*_wy_anom_v18` columns.
+
+| Snapshot | AUC | Pearson | cv_ratio | ba_ratio_total |
+|---|---|---|---|---|
+| v17 (operational) | 0.857 | +0.329 | 0.23 | **0.99** |
+| v18 (rank-only)   | 0.857 | +0.459 | 0.18 | 0.36 |
+| **v51 (Arch B)** | **0.857** | **+0.459** | 0.18 | **0.99** |
+| v52 (Arch A)     | 0.857 | +0.339 | 0.27 | 0.65 |
+
+**Outcome: v51 strictly dominates v17.** Same AUC, +0.13 Pearson lift, identical calibration. All four promotion criteria met. v51 becomes the new operational candidate for fire-model Track B prediction.
+
+**v52 is a near-no-op.** The LogReg, when given v18's WY-anomaly features alongside v17's, weights them down — predicted as the plan's Risk #1: training data (WYs through 2019) doesn't reward v18-specific signal, so the model trained on calib doesn't extract the test-period rank improvement that v18 carries. Pearson lifts only 0.01 over v17, and calibration drifts to 0.65. The lever that actually works (v51) is explicit per-WY redistribution, not feature concatenation.
+
+**Practical handoff:** v51 is the operational candidate. Use `fire_model/snapshots/v51-stacking-v17xv18/evaluation/trackB/metrics.json` and the script at `fire_model/scripts/v51_stacking_hybrid.py` to reproduce. The script depends on v17 and v18 hindcast predictions already existing on disk; both are present at `fire_model/data/predictions_hindcast_v{17_polaris_awc,18_mse_noextreme}/`. No BCM emulator retraining was required.
+
+For downstream consumers (BA-prediction pipelines), v51 inherits v17's spatial calibration so existing prediction-area thresholds carry over. The Pearson lift comes entirely from per-WY allocation, so consumers using per-WY total predicted area (e.g., interannual fire-area regression) gain the +0.13 Pearson; consumers using per-pixel binary fire predictions see v17 behavior preserved.

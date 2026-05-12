@@ -211,6 +211,116 @@ def compute_pixel_nse(
     return nse_map
 
 
+def _wy_groups(dates: np.ndarray) -> np.ndarray:
+    """Map each monthly index to its water-year (Oct→Sep) group label.
+
+    Parameters
+    ----------
+    dates : np.ndarray of str
+        ISO date strings 'YYYY-MM-...' aligned to the time axis.
+
+    Returns
+    -------
+    np.ndarray of int, shape (T,)
+        WY label for each timestep. WY ending in Sep YYYY+1 starting Oct YYYY is
+        labeled YYYY+1 (the "ending" calendar year, conventional for water years).
+    """
+    years = np.array([int(d[:4]) for d in dates])
+    months = np.array([int(d[5:7]) for d in dates])
+    # Oct, Nov, Dec belong to next water year; Jan-Sep belong to current calendar year.
+    return years + (months >= 10).astype(int)
+
+
+def compute_pixel_annual_pearson(
+    observed: np.ndarray, predicted: np.ndarray, dates: np.ndarray
+) -> np.ndarray:
+    """Per-pixel Pearson correlation of WY-mean obs vs WY-mean pred.
+
+    Parameters
+    ----------
+    observed, predicted : np.ndarray, shape (T, H, W)
+    dates : np.ndarray of str, shape (T,)
+
+    Returns
+    -------
+    np.ndarray, shape (H, W)
+        Pearson r per pixel across complete water years. Pixels with fewer than
+        2 complete WYs or zero variance return NaN.
+    """
+    wy = _wy_groups(dates)
+    unique_wys, inv = np.unique(wy, return_inverse=True)
+
+    # Only keep WYs with all 12 months present in the input record.
+    counts = np.bincount(inv)
+    full_mask = counts == 12
+    keep_wys = unique_wys[full_mask]
+
+    if len(keep_wys) < 2:
+        H, W = observed.shape[1:]
+        return np.full((H, W), np.nan, dtype=np.float32)
+
+    keep_idx = np.isin(wy, keep_wys)
+    obs_keep = observed[keep_idx]
+    pred_keep = predicted[keep_idx]
+    wy_keep = wy[keep_idx]
+
+    # Stack into (n_full_wys, 12, H, W) by reshaping in WY order.
+    order = np.argsort(wy_keep, kind="stable")
+    obs_sorted = obs_keep[order]
+    pred_sorted = pred_keep[order]
+    n_full = len(keep_wys)
+    H, W = observed.shape[1:]
+    obs_re = obs_sorted.reshape(n_full, 12, H, W)
+    pred_re = pred_sorted.reshape(n_full, 12, H, W)
+    obs_annual = np.nanmean(obs_re, axis=1)   # (n_full, H, W)
+    pred_annual = np.nanmean(pred_re, axis=1)  # (n_full, H, W)
+
+    # Per-pixel Pearson r over the n_full annual means.
+    obs_mean = np.nanmean(obs_annual, axis=0, keepdims=True)
+    pred_mean = np.nanmean(pred_annual, axis=0, keepdims=True)
+    obs_dev = obs_annual - obs_mean
+    pred_dev = pred_annual - pred_mean
+    num = np.nansum(obs_dev * pred_dev, axis=0)
+    denom = np.sqrt(np.nansum(obs_dev ** 2, axis=0) * np.nansum(pred_dev ** 2, axis=0))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r = np.where(denom > 0, num / denom, np.nan)
+    return r.astype(np.float32)
+
+
+def compute_within_wy_variance_ratio(
+    observed: np.ndarray, predicted: np.ndarray, dates: np.ndarray
+) -> np.ndarray:
+    """Mean per-pixel ratio of monthly std(pred) / std(obs) within each complete WY.
+
+    For each pixel and complete water year, compute std of the 12 monthly values
+    for both pred and obs, take ratio pred/obs, then average ratios across WYs.
+    Ratio < 1 means the emulator damps sub-annual variance relative to truth
+    (the intended effect of the annual-pooled loss).
+    """
+    wy = _wy_groups(dates)
+    unique_wys, inv = np.unique(wy, return_inverse=True)
+    counts = np.bincount(inv)
+    full_mask = counts == 12
+    keep_wys = unique_wys[full_mask]
+
+    H, W = observed.shape[1:]
+    if len(keep_wys) == 0:
+        return np.full((H, W), np.nan, dtype=np.float32)
+
+    keep_idx = np.isin(wy, keep_wys)
+    wy_keep = wy[keep_idx]
+    order = np.argsort(wy_keep, kind="stable")
+    obs_re = observed[keep_idx][order].reshape(len(keep_wys), 12, H, W)
+    pred_re = predicted[keep_idx][order].reshape(len(keep_wys), 12, H, W)
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        obs_std = np.nanstd(obs_re, axis=1)   # (n_full, H, W)
+        pred_std = np.nanstd(pred_re, axis=1)
+        ratio = np.where(obs_std > 0, pred_std / obs_std, np.nan)
+        ratio_map = np.nanmean(ratio, axis=0)  # (H, W)
+    return ratio_map.astype(np.float32)
+
+
 def compute_lag_autocorrelation(
     residuals: np.ndarray, max_lag: int = 12
 ) -> np.ndarray:

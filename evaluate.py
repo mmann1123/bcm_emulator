@@ -221,9 +221,62 @@ def main():
 
     # Compute metrics
     logger.info("Computing metrics...")
-    from src.evaluation.metrics import compute_all_metrics, compute_lag_autocorrelation
+    from src.evaluation.metrics import (
+        compute_all_metrics,
+        compute_lag_autocorrelation,
+        compute_pixel_annual_pearson,
+        compute_within_wy_variance_ratio,
+    )
 
     metrics = compute_all_metrics(observed, predicted)
+
+    # v24 diagnostics: per-pixel annual Pearson and within-WY variance ratio for PET/AET.
+    # Aggregated by ecoregion (statewide, Sierra Nevada=eco 5, fire-prone subset).
+    logger.info("Computing v24 annual-pooled diagnostics (annual Pearson, WY variance ratio)...")
+    test_dates = np.array(store["meta/time"])[test_slice]
+    annual_diag_maps = {}
+    try:
+        import rasterio as _rio
+        from scripts.nse_by_ecoregion import FIRE_PRONE_ECO as _FIRE_PRONE_ECO
+        eco_path = getattr(cfg.paths, "eco_raster",
+                           getattr(cfg.paths, "ecoregion_path",
+                                   "/home/mmann1123/extra_space/Regions/ca_eco_l3.tif"))
+        with _rio.open(eco_path) as _src:
+            eco_arr = _src.read(1)
+        sierra_mask = eco_arr == 5
+        fireprone_mask = np.isin(eco_arr, list(_FIRE_PRONE_ECO))
+    except Exception as _e:
+        logger.warning(f"Could not load ecoregion raster for v24 diagnostics: {_e}")
+        eco_arr = None
+        sierra_mask = None
+        fireprone_mask = None
+
+    for var in ["pet", "aet"]:
+        ann_r = compute_pixel_annual_pearson(observed[var], predicted[var], test_dates)
+        var_ratio = compute_within_wy_variance_ratio(observed[var], predicted[var], test_dates)
+        annual_diag_maps[f"annual_pearson_{var}"] = ann_r
+        annual_diag_maps[f"wy_variance_ratio_{var}"] = var_ratio
+
+        valid = np.isfinite(ann_r) & valid_mask
+        metrics[f"annual_pearson_statewide_{var}"] = float(np.nanmean(ann_r[valid])) if valid.any() else float("nan")
+        if sierra_mask is not None:
+            m = valid & sierra_mask
+            metrics[f"annual_pearson_sierra_{var}"] = float(np.nanmean(ann_r[m])) if m.any() else float("nan")
+        if fireprone_mask is not None:
+            m = valid & fireprone_mask
+            metrics[f"annual_pearson_fireprone_{var}"] = float(np.nanmean(ann_r[m])) if m.any() else float("nan")
+            # Per-ecoregion fire-prone breakdown for the worst-region tiebreaker.
+            per_eco = {}
+            for eid in sorted(_FIRE_PRONE_ECO):
+                em = valid & (eco_arr == eid)
+                per_eco[str(int(eid))] = float(np.nanmean(ann_r[em])) if em.any() else float("nan")
+            metrics[f"annual_pearson_fireprone_per_eco_{var}"] = per_eco
+
+        valid_v = np.isfinite(var_ratio) & valid_mask
+        metrics[f"wy_variance_ratio_statewide_{var}"] = float(np.nanmean(var_ratio[valid_v])) if valid_v.any() else float("nan")
+        if sierra_mask is not None:
+            m = valid_v & sierra_mask
+            metrics[f"wy_variance_ratio_sierra_{var}"] = float(np.nanmean(var_ratio[m])) if m.any() else float("nan")
 
     # Print results
     print("\n" + "=" * 60)
@@ -309,6 +362,17 @@ def main():
         valid_mask=valid_mask,
         output_dir=cfg.paths.output_dir,
     )
+
+    # v24 diagnostic GeoTIFFs
+    from src.utils.io_helpers import write_raster
+    spatial_dir = Path(cfg.paths.output_dir) / "spatial_maps"
+    spatial_dir.mkdir(parents=True, exist_ok=True)
+    for name, arr in annual_diag_maps.items():
+        out = arr.copy()
+        out[~valid_mask] = -9999.0
+        tif_path = spatial_dir / f"{name}.tif"
+        write_raster(str(tif_path), out, bcm_profile)
+        logger.info(f"Saved v24 diagnostic map: {tif_path}")
 
     # Copy outputs to snapshot directory if --run-id provided
     if args.run_id:

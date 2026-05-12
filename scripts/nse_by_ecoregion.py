@@ -39,20 +39,43 @@ ECOREGION_NAMES = {
     85: "S. CA Coast",
 }
 
+# Fire-prone L3 ecoregions per the v24 spec (2026-04-22 fire-model diagnostic).
+# Sierra Nevada = 5 (verified against /home/mmann1123/extra_space/Regions/ca_eco_l3.tif).
+FIRE_PRONE_ECO = {1, 4, 5, 6, 8, 78, 81, 85}
+
 VARIABLES = ["aet", "cwd", "pet", "pck"]
 
 
-def load_nse_by_ecoregion(snap_dir, eco_raster, eco_nodata=-128):
+def load_nse_by_ecoregion(snap_dir, eco_raster, eco_nodata=-128, subset=None):
     """Load NSE TIFs and group pixel values by ecoregion.
 
-    Returns:
-        dict[var][eco_id] → 1-D array of NSE values
+    Parameters
+    ----------
+    snap_dir : str | Path
+        Snapshot directory with spatial_maps/nse_*.tif.
+    eco_raster : str
+        Path to L3 ecoregion raster.
+    eco_nodata : int
+        Nodata value in eco_raster.
+    subset : Optional[str | Iterable[int]]
+        Restrict the returned ecoregion IDs. Pass "fire_prone" to use FIRE_PRONE_ECO,
+        or an iterable of integer ecoregion codes. None (default) returns all.
+
+    Returns
+    -------
+    dict[var][eco_id] → 1-D array of NSE values
     """
     snap_dir = Path(snap_dir)
     with rasterio.open(eco_raster) as src:
         eco = src.read(1)
 
     eco_ids = sorted(set(np.unique(eco)) - {eco_nodata})
+    if subset is not None:
+        if isinstance(subset, str) and subset == "fire_prone":
+            allowed = FIRE_PRONE_ECO
+        else:
+            allowed = set(int(x) for x in subset)
+        eco_ids = [e for e in eco_ids if int(e) in allowed]
     result = {}
 
     for var in VARIABLES:
@@ -198,6 +221,7 @@ def generate_nse_by_ecoregion(
     project_root=".",
     eco_raster="/home/mmann1123/extra_space/Regions/ca_eco_l3.tif",
     output_path=None,
+    subset=None,
 ):
     """Public API: generate NSE-by-ecoregion plot from snapshot IDs.
 
@@ -222,7 +246,7 @@ def generate_nse_by_ecoregion(
         if not snap_dir.exists():
             logger.warning(f"Snapshot '{sid}' not found at {snap_dir}, skipping")
             continue
-        data_list.append(load_nse_by_ecoregion(snap_dir, eco_raster))
+        data_list.append(load_nse_by_ecoregion(snap_dir, eco_raster, subset=subset))
 
     valid_names = [sid for sid in snapshot_ids if (snap_base / sid).exists()]
 
@@ -254,13 +278,24 @@ def main():
         default=None,
         help="Output PNG path (default: outputs/nse_by_ecoregion.png)",
     )
+    parser.add_argument(
+        "--subset",
+        default=None,
+        help="Restrict to a subset of ecoregions. Pass 'fire_prone' for the v24 set, "
+             "or a comma-separated list of integer codes (e.g. '1,4,5,6,8,78,81,85').",
+    )
     args = parser.parse_args()
+
+    subset = args.subset
+    if subset is not None and subset != "fire_prone":
+        subset = [int(x) for x in subset.split(",")]
 
     generate_nse_by_ecoregion(
         snapshot_ids=args.snapshots,
         project_root=args.project_root,
         eco_raster=args.eco_raster,
         output_path=args.output,
+        subset=subset,
     )
 
 

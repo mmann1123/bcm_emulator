@@ -94,10 +94,13 @@ def main():
         fveg_ids = torch.stack([b["fveg_id"] for b in batch])
         kbdi = torch.stack([b["kbdi"] for b in batch])
         kv = torch.stack([b["kv"] for b in batch])
+        month_indices = None
+        if "month_indices" in batch[0]:
+            month_indices = torch.stack([b["month_indices"] for b in batch])
         targets = {}
         for var in ["pet", "pck", "aet", "cwd"]:
             targets[var] = torch.stack([b["targets"][var] for b in batch])
-        return {
+        out = {
             "inputs": inputs,
             "kbdi": kbdi,
             "kv": kv,
@@ -106,6 +109,9 @@ def main():
             "gt_aet_prev": gt_aet,
             "fveg_ids": fveg_ids,
         }
+        if month_indices is not None:
+            out["month_indices"] = month_indices
+        return out
 
     train_loader = DataLoader(
         train_dataset,

@@ -29,6 +29,22 @@ conda run -n deep_field python -c "from src.utils.snapshot import compare_snapsh
 
 No test suite, linter, or CI configured. Evaluation metrics (NSE, KGE, RMSE) and spatial NSE maps serve as the validation mechanism.
 
+## Repo Layout
+
+- `src/models/` — TCN backbone and BCM emulator heads
+- `src/data/` — zarr build (`preprocessing.py`), `BCMPixelDataset`, ecoregion sampler
+- `src/training/` — trainer, losses
+- `src/evaluation/` — metric computation, spatial map generation
+- `src/utils/` — config loader, snapshot system
+- `scripts/` — standalone utilities (channel patches, analyses, fire-model bridge)
+- `snapshots/{run_id}/` — frozen artifacts per training run
+- `checkpoints/` — active training checkpoints (`best_model.pt`)
+- `outputs/` — evaluation outputs (`metrics.json`, `spatial_maps/`)
+
+## Run-ID Convention
+
+Use `v{N}-{short-tag}` matching the lineage in `snapshots/` (e.g. `v17-polaris-awc`, `v19a-extended`). Bump `N` for substantive model/data changes; suffix letters (`v19a`) for variants of the same version.
+
 ## Architecture
 
 **Three-stage hierarchical TCN** predicting monthly water balance variables on a 1km California grid (EPSG:3310, 1209x941 pixels).
@@ -107,7 +123,11 @@ Each `--run-id` creates `snapshots/{id}/` containing: manifest.json (git hash, m
 
 The fire model has been moved to its own project at `/home/mmann1123/extra_space/fire_model/`. See that project's `CLAUDE.md` for full documentation.
 
-**Bridge script:** `scripts/fire_model/00_export_predictions.py` remains here — it exports emulator predictions as `.npy` files for the fire model to consume. Run it before any fire model scripts:
+**Bridge scripts:** Two exporters live in `scripts/fire_model/` and write `.npy` files for the fire model to consume:
+- `00_export_predictions.py` — standard exporter (training/test period)
+- `00_export_predictions_hindcast.py` — hindcast variant for extended/historical windows
+
+Run the appropriate one before any fire model scripts:
 
 ```bash
 conda run -n deep_field python scripts/fire_model/00_export_predictions.py \
@@ -135,9 +155,7 @@ Total = Σ w_var * Huber(var) + extreme_weight * MSE_extreme(extreme_vars)
 
 ## Current Status
 
-Best CWD: **v17-polaris-awc** (CWD NSE 0.929, RMSE 15.5, KGE 0.931 — all best-ever). Best AET extremes: **v16-aet1.5-extreme** (AET P95 bias -16.3mm — best among valid runs). Best AET KGE: **v14-sws-stress** / **v15-awc-extreme** (0.831 tied). Best overall PET/PCK: **v6-huber** (PET NSE 0.927, PCK NSE 0.950). Best balanced: **v17-polaris-awc** (PCK pbias 6.8%, CWD best-ever, PET NSE 0.879 — best weighted-loss run; trade-off: AET P95 bias -19.2mm regressed from v16's -16.3mm). v17 uses POLARIS root-zone AWC (0-100cm, ~300-500mm) for SWS instead of BCMv8 full-column (~500-2000mm), producing a more drought-responsive SWS signal.
-
-**Out-of-sample validation: v19a-extended** — v19a model evaluated on 5-year holdout (Oct 2019 - Sep 2024) including 2020-2024 megadrought. CWD NSE 0.919 (-0.006 from training), CWD KGE 0.940 (improved), PCK NSE 0.965 (best-ever). Emulator validated for fire probability modeling. See `docs/model_comparison.md` for full run-by-run analysis.
+Current best balanced run: **v17-polaris-awc** (CWD NSE 0.929, best-ever). Out-of-sample validated on **v19a-extended** (5-year holdout incl. 2020-2024 megadrought; CWD NSE 0.919). See `docs/model_comparison.md` for the full run-by-run history — keep that file as the source of truth and avoid duplicating per-run metrics here.
 
 **Important:** The zarr stores **raw (unnormalized) values** for all channels. Normalization stats in `/norm/*` are applied on-the-fly by `BCMPixelDataset`. When adding derived channels via scripts (not `prepare_data.py --steps zarr`), write raw values and append norm stats — do NOT z-normalize before writing.
 
@@ -181,19 +199,11 @@ This is the canonical workflow. All five steps must be run in order for every ne
   ```
 - Source rasters are stable on disk; zarr is deterministically derived from config + rasters.
 
-## Zarr Build Sequence (Full Rebuild)
+## Zarr Channel Layout (Full Rebuild)
 
-A single command produces the full 15-channel zarr:
-
-```bash
-conda run -n deep_field python prepare_data.py --steps zarr
-```
-
-`build_zarr_store()` in `preprocessing.py` handles all 15 dynamic channels:
-- Channels 0-10: base climate inputs (ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi)
-- Channel 11: SWS (stress-modulated bucket model, v14+ formulation)
+`prepare_data.py --steps zarr` invokes `build_zarr_store()` which produces all 15 dynamic channels:
+- Channels 0-10: base climate (ppt, tmin, tmax, wet_days, ppt_intensity, srad, snow_frac, pck_prev, aet_prev, vpd, kbdi)
+- Channel 11: SWS (stress-modulated bucket model, v14+)
 - Channels 12-14: rolling std (vpd_roll6_std, srad_roll6_std, tmax_roll3_std)
 
-Result: `(T, 15, H, W)` dynamic + `(14, H, W)` static, `in_channels=35` in config.yaml
-
-The standalone scripts `scripts/add_sws_channel.py` and `scripts/add_rolling_std_channels.py` are retained for patching existing zarr stores without a full rebuild.
+Result: `(T, 15, H, W)` dynamic + `(14, H, W)` static, `in_channels=35` in config.yaml. Standalone scripts `scripts/add_sws_channel.py` and `scripts/add_rolling_std_channels.py` patch existing zarrs without a full rebuild.

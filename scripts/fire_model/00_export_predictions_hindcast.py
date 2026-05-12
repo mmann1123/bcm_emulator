@@ -158,9 +158,22 @@ def main():
         fveg_embed_dim=fveg_embed_dim,
     )
     ckpt = torch.load(str(ckpt_path), map_location=device, weights_only=True)
-    model.load_state_dict(ckpt["model_state_dict"])
+    missing, unexpected = model.load_state_dict(
+        ckpt["model_state_dict"], strict=False)
+    if missing:
+        logger.warning(f"Missing keys (using fallback init): {missing}")
+        # For older dual-backbone snapshots (e.g. v21) that predate the
+        # aet_fveg_embedding module: sync it from the loaded main fveg_embedding
+        # so inference uses trained FVEG semantics rather than random init.
+        if any("aet_fveg_embedding" in k for k in missing) and hasattr(
+                model, "aet_fveg_embedding") and hasattr(model, "fveg_embedding"):
+            model.aet_fveg_embedding.weight.data.copy_(
+                model.fveg_embedding.weight.data)
+            logger.warning("  → copied fveg_embedding.weight into aet_fveg_embedding")
+    if unexpected:
+        logger.warning(f"Unexpected keys (ignored): {unexpected}")
     model = model.to(device).eval()
-    logger.info(f"Loaded v19a: epoch {ckpt['epoch']+1}, val_loss={ckpt['val_loss']:.4f}")
+    logger.info(f"Loaded {snap_dir.name}: epoch {ckpt['epoch']+1}, val_loss={ckpt['val_loss']:.4f}")
 
     # Build a custom time slice covering inference-start..inference-end
     time_index = np.array(store["meta/time"])

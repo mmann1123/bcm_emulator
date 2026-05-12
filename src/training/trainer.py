@@ -99,6 +99,9 @@ class BCMTrainer:
             extreme_weight=getattr(lw, "extreme_weight", 0.0),
             extreme_vars=getattr(lw, "extreme_vars", []),
             extreme_asym=getattr(lw, "extreme_asym", 1.5),
+            annual_lambda=getattr(lw, "annual_lambda", 0.0),
+            annual_vars=getattr(lw, "annual_vars", []),
+            annual_min_complete_wy=getattr(lw, "annual_min_complete_wy", 1),
         )
 
         # AMP — disable on CPU
@@ -182,6 +185,9 @@ class BCMTrainer:
         # Add extreme loss keys dynamically
         for var in self.criterion.extreme_vars:
             running[f"{var}_extreme"] = 0.0
+        # Add annual-pooled loss keys dynamically
+        for var in self.criterion.annual_vars:
+            running[f"annual_{var}"] = 0.0
         n_batches = 0
 
         for batch in self.train_loader:
@@ -192,6 +198,7 @@ class BCMTrainer:
             fveg_ids = batch.get("fveg_ids")
             kbdi = batch.get("kbdi")
             kv = batch.get("kv")
+            month_indices = batch.get("month_indices")
             if gt_pck_prev is not None:
                 gt_pck_prev = gt_pck_prev.to(self.device)
             if gt_aet_prev is not None:
@@ -202,12 +209,14 @@ class BCMTrainer:
                 kbdi = kbdi.to(self.device)
             if kv is not None:
                 kv = kv.to(self.device)
+            if month_indices is not None:
+                month_indices = month_indices.to(self.device)
 
             self.optimizer.zero_grad()
 
             with autocast("cuda", enabled=self.amp_enabled) if (_HAS_NEW_AMP and self.amp_enabled) else nullcontext():
                 preds = self.model(inputs, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi=kbdi, kv=kv)
-                losses = self.criterion(preds, targets, epoch)
+                losses = self.criterion(preds, targets, epoch, month_indices=month_indices)
 
             self.scaler.scale(losses["total"]).backward()
             if self.grad_clip > 0:

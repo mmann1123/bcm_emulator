@@ -1,0 +1,149 @@
+2026-05-04 17:03:32,941 [INFO] __main__: Using device: cuda
+2026-05-04 17:03:33,080 [INFO] __main__: Loaded checkpoint from epoch 82, val_loss=0.8262
+2026-05-04 17:03:33,083 [INFO] src.data.splits: Splits: train=1980-01..2019-09 (477 months), test=2019-10..2024-09 (60 months)
+2026-05-04 17:03:33,093 [INFO] src.data.splits: Using 481742 pixels (100% of valid)
+2026-05-04 17:03:33,098 [INFO] __main__: Running inference on 481742 pixels, 60 timesteps...
+2026-05-04 17:03:33,588 [INFO] src.data.dataset: Preloading data for 481742 pixels into RAM...
+2026-05-04 17:03:41,078 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-05-04 17:03:42,838 [INFO] src.data.dataset: Preload complete. Dynamic: 1763 MB, Targets: 470 MB
+2026-05-04 17:08:46,387 [INFO] __main__: Computing metrics...
+2026-05-04 17:08:52,946 [INFO] __main__: Computing v24 annual-pooled diagnostics (annual Pearson, WY variance ratio)...
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:275: RuntimeWarning: Mean of empty slice
+  obs_annual = np.nanmean(obs_re, axis=1)   # (n_full, H, W)
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:276: RuntimeWarning: Mean of empty slice
+  pred_annual = np.nanmean(pred_re, axis=1)  # (n_full, H, W)
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:279: RuntimeWarning: Mean of empty slice
+  obs_mean = np.nanmean(obs_annual, axis=0, keepdims=True)
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:280: RuntimeWarning: Mean of empty slice
+  pred_mean = np.nanmean(pred_annual, axis=0, keepdims=True)
+/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1997: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:320: RuntimeWarning: Mean of empty slice
+  ratio_map = np.nanmean(ratio, axis=0)  # (H, W)
+
+============================================================
+EVALUATION RESULTS
+============================================================
+
+PET:
+       nse:     0.8977
+       kge:     0.8433
+      rmse:    19.0743
+     pbias:     1.1623
+
+PCK:
+       nse:     0.9648
+       kge:     0.9475
+      rmse:    22.0197
+     pbias:     4.7456
+
+AET:
+       nse:     0.8305
+       kge:     0.8021
+      rmse:    12.6863
+     pbias:     1.4658
+
+CWD:
+       nse:     0.9009
+       kge:     0.9432
+      rmse:    17.9548
+     pbias:     0.8193
+
+EXTREME-VALUE METRICS (AET, CWD)
+------------------------------------------------------------
+  AET P95: RMSE=32.973  Bias=-23.149  Hit-rate=0.710  (n=1445227)
+  AET P99: RMSE=45.697  Bias=-36.565  Hit-rate=0.562  (n=289046)
+  CWD P95: RMSE=10.272  Bias=+3.748  Hit-rate=0.827  (n=1445227)
+  CWD P99: RMSE=8.379  Bias=+4.134  Hit-rate=0.652  (n=289046)
+
+CWD Identity MAE: nan
+============================================================
+2026-05-04 17:08:56,772 [INFO] __main__: Metrics saved: /home/mmann1123/extra_space/bcm_emulator/outputs/metrics.json
+2026-05-04 17:08:56,772 [INFO] __main__: Computing residual autocorrelation...
+
+PET residual ACF (lags 1-12):
+  +0.721 +0.398 -0.028 -0.433 -0.650 -0.745 -0.637 -0.420 -0.065 +0.347 +0.717 +0.846
+
+PCK residual ACF (lags 1-12):
+  +0.851 +0.596 +0.331 +0.126 +0.006 -0.064 -0.145 -0.263 -0.361 -0.381 -0.323 -0.231
+
+AET residual ACF (lags 1-12):
+  +0.701 +0.285 -0.052 -0.228 -0.301 -0.333 -0.234 -0.206 -0.086 +0.182 +0.497 +0.664
+
+CWD residual ACF (lags 1-12):
+  +0.197 +0.076 -0.070 -0.176 -0.140 +0.113 -0.193 -0.209 -0.120 -0.019 +0.118 +0.251
+2026-05-04 17:08:57,799 [INFO] __main__: Generating spatial NSE maps...
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:202: RuntimeWarning: Mean of empty slice
+  obs_mean = np.nanmean(observed, axis=0, keepdims=True)  # (1, H, W)
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:210: RuntimeWarning: divide by zero encountered in divide
+  nse_map = np.where(denominator >= min_denom, 1.0 - numerator / denominator, np.nan)
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:210: RuntimeWarning: invalid value encountered in divide
+  nse_map = np.where(denominator >= min_denom, 1.0 - numerator / denominator, np.nan)
+2026-05-04 17:08:58,494 [INFO] src.evaluation.spatial_maps: Saved NSE map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_pet.tif
+2026-05-04 17:08:58,816 [INFO] src.evaluation.spatial_maps: Saved NSE PNG: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_pet.png
+2026-05-04 17:08:59,493 [INFO] src.evaluation.spatial_maps: Saved NSE map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_pck.tif
+2026-05-04 17:08:59,785 [INFO] src.evaluation.spatial_maps: Saved NSE PNG: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_pck.png
+2026-05-04 17:09:00,481 [INFO] src.evaluation.spatial_maps: Saved NSE map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_aet.tif
+2026-05-04 17:09:00,818 [INFO] src.evaluation.spatial_maps: Saved NSE PNG: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_aet.png
+2026-05-04 17:09:01,511 [INFO] src.evaluation.spatial_maps: Saved NSE map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_cwd.tif
+2026-05-04 17:09:01,852 [INFO] src.evaluation.spatial_maps: Saved NSE PNG: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/nse_cwd.png
+2026-05-04 17:09:01,852 [INFO] __main__: Generating extreme bias maps...
+/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1593: RuntimeWarning: All-NaN slice encountered
+  return fnb._ureduce(a,
+/home/mmann1123/extra_space/bcm_emulator/src/evaluation/metrics.py:116: RuntimeWarning: Mean of empty slice
+  bias_map = np.nanmean(residuals_masked, axis=0)  # (H, W)
+2026-05-04 17:09:12,426 [INFO] src.evaluation.spatial_maps: Saved extreme bias map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/extreme_bias_aet.tif
+2026-05-04 17:09:22,887 [INFO] src.evaluation.spatial_maps: Saved extreme bias PNG: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/extreme_bias_aet.png
+2026-05-04 17:09:33,284 [INFO] src.evaluation.spatial_maps: Saved extreme bias map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/extreme_bias_cwd.tif
+2026-05-04 17:09:43,709 [INFO] src.evaluation.spatial_maps: Saved extreme bias PNG: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/extreme_bias_cwd.png
+2026-05-04 17:09:43,733 [INFO] __main__: Saved v24 diagnostic map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/annual_pearson_pet.tif
+2026-05-04 17:09:43,754 [INFO] __main__: Saved v24 diagnostic map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/wy_variance_ratio_pet.tif
+2026-05-04 17:09:43,776 [INFO] __main__: Saved v24 diagnostic map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/annual_pearson_aet.tif
+2026-05-04 17:09:43,798 [INFO] __main__: Saved v24 diagnostic map: /home/mmann1123/extra_space/bcm_emulator/outputs/spatial_maps/wy_variance_ratio_aet.tif
+2026-05-04 17:09:43,806 [INFO] __main__: Updated snapshot 'v24c-annualpool-lambda10.0-v17-polaris-awc' with evaluation outputs
+2026-05-04 17:09:43,806 [INFO] __main__: Generating NSE-by-ecoregion box plots...
+2026-05-04 17:09:44,390 [INFO] scripts.nse_by_ecoregion: Saved ecoregion NSE plot: /home/mmann1123/extra_space/bcm_emulator/outputs/nse_by_ecoregion.png
+
+Ecoregion            v24b-ann_ AET v24b-ann_ CWD v24b-ann_ PET v24b-ann_ PCK v24c-ann_ AET v24c-ann_ CWD v24c-ann_ PET v24c-ann_ PCK
+------------------------------------------------------------------------------------------------------------------------------------
+Coast Range                  0.901         0.403         0.719         0.352         0.920        -0.445         0.738         0.113
+Cascades                     0.953         0.883         0.863         0.957         0.952         0.847         0.863         0.963
+Sierra Nevada                0.917         0.876         0.852         0.969         0.915         0.849         0.848         0.972
+C. Foothills                 0.764         0.899         0.897         0.183         0.784         0.891         0.891         0.200
+Central Valley               0.708         0.956         0.963             —         0.735         0.943         0.965             —
+S. CA Mtns                   0.692         0.887         0.920         0.847         0.674         0.874         0.915         0.593
+E. Cascades                  0.773         0.946         0.951         0.977         0.771         0.941         0.952         0.972
+C. Basin & Range             0.324         0.920         0.970         0.970         0.303         0.907         0.972         0.967
+Mojave                      -1.537         0.975         0.982         0.816        -0.984         0.971         0.986         0.717
+Klamath/N Coast              0.931         0.675         0.752         0.922         0.943         0.466         0.764         0.904
+N. Basin & Range             0.330         0.843         0.973         0.981         0.356         0.843         0.974         0.975
+Sonoran                     -4.155         0.978         0.981        -0.515        -2.631         0.971         0.986        -0.277
+S. CA Coast                  0.594         0.868         0.942        -1.318         0.593         0.865         0.939       -13.278
+2026-05-04 17:09:44,406 [INFO] __main__: Comparing snapshots: v24b-annualpool-lambda3.0-v17-polaris-awc vs v24c-annualpool-lambda10.0-v17-polaris-awc
+
+                     v24b-annualpool-lambda3.0-v17-polaris-awc v24c-annualpool-lambda10.0-v17-polaris-awc        delta
+======================================================================
+       best_val_loss 0.8518806259623535 0.8262283201746647      -0.0257
+          best_epoch               16               82          +66
+        total_epochs               40              100          +60
+----------------------------------------------------------------------
+             PET kge           0.8514           0.8433      -0.0080
+             PET nse           0.8946           0.8977      +0.0032
+           PET pbias           0.8339           1.1623      +0.3284
+            PET rmse          19.3667          19.0743      -0.2924
+             PCK kge           0.9574           0.9475      -0.0099
+             PCK nse           0.9611           0.9648      +0.0037
+           PCK pbias           3.7803           4.7456      +0.9652
+            PCK rmse          23.1387          22.0197      -1.1190
+             AET kge           0.7723           0.8021      +0.0298
+             AET nse           0.8199           0.8305      +0.0105
+           AET pbias           0.4109           1.4658      +1.0549
+            AET rmse          13.0748          12.6863      -0.3885
+             CWD kge           0.9558           0.9432      -0.0126
+             CWD nse           0.9141           0.9009      -0.0132
+           CWD pbias           1.1040           0.8193      -0.2847
+            CWD rmse          16.7158          17.9548      +1.2390
+----------------------------------------------------------------------
+    zarr fingerprint 7b8b16652ae9317d 7b8b16652ae9317d         SAME
+
+2026-05-04 17:09:44,406 [INFO] __main__: Evaluation complete.

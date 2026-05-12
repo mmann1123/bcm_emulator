@@ -1,0 +1,206 @@
+2026-04-30 09:46:49,820 [INFO] __main__: Using device: cuda
+2026-04-30 09:46:49,820 [INFO] __main__: Loading dataset...
+2026-04-30 09:46:49,928 [INFO] src.data.splits: Splits: train=1980-01..2019-09 (477 months), test=2019-10..2024-09 (60 months)
+2026-04-30 09:46:49,960 [INFO] src.data.splits: Using 240871 pixels (50% of valid)
+2026-04-30 09:46:49,971 [INFO] src.data.dataset: Preloading data for 240871 pixels into RAM...
+2026-04-30 09:47:10,006 [INFO] src.data.dataset:   Dynamic: 108/477 timesteps loaded
+2026-04-30 09:47:26,358 [INFO] src.data.dataset:   Dynamic: 204/477 timesteps loaded
+2026-04-30 09:47:42,114 [INFO] src.data.dataset:   Dynamic: 300/477 timesteps loaded
+2026-04-30 09:47:59,302 [INFO] src.data.dataset:   Dynamic: 408/477 timesteps loaded
+2026-04-30 09:48:10,491 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-04-30 09:48:30,342 [INFO] src.data.dataset: Preload complete. Dynamic: 6894 MB, Targets: 1838 MB
+2026-04-30 09:48:30,350 [INFO] src.data.dataset: Preloading data for 240871 pixels into RAM...
+2026-04-30 09:48:40,411 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-04-30 09:48:42,767 [INFO] src.data.dataset: Preload complete. Dynamic: 882 MB, Targets: 235 MB
+2026-04-30 09:48:42,921 [INFO] src.data.dataset: EcoregionStratifiedSampler: 13 ecoregions, 18528 samples/region, 240871 total/epoch
+2026-04-30 09:48:42,921 [INFO] __main__: Building model...
+2026-04-30 09:48:42,932 [INFO] __main__: Model parameters: 1,160,740
+2026-04-30 09:48:43,645 [INFO] __main__: Starting training...
+2026-04-30 10:03:05,377 [INFO] src.training.trainer: Epoch 1/100 | TF=1.00 | LR=0.000280 | Train: 1.4148 (PET=0.1402 PCK=0.2364 AET=0.2423 CWD=0.1447 AET_ext=1.5527) | Val: 1.2375 | Weights: PET=1.00 PCK=1.00
+2026-04-30 10:03:05,406 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/best_model.pt
+2026-04-30 10:17:24,749 [INFO] src.training.trainer: Epoch 2/100 | TF=1.00 | LR=0.000460 | Train: 0.4929 (PET=0.0772 PCK=0.0259 AET=0.0925 CWD=0.0637 AET_ext=0.4921) | Val: 1.1112 | Weights: PET=0.99 PCK=1.00
+2026-04-30 10:17:24,764 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/best_model.pt
+2026-04-30 10:31:30,426 [INFO] src.training.trainer: Epoch 3/100 | TF=1.00 | LR=0.000640 | Train: 0.4241 (PET=0.0735 PCK=0.0186 AET=0.0772 CWD=0.0556 AET_ext=0.4153) | Val: 1.1431 | Weights: PET=0.98 PCK=1.00
+2026-04-30 10:46:14,469 [INFO] src.training.trainer: Epoch 4/100 | TF=1.00 | LR=0.000820 | Train: 0.3897 (PET=0.0725 PCK=0.0161 AET=0.0688 CWD=0.0518 AET_ext=0.3700) | Val: 1.0789 | Weights: PET=0.97 PCK=1.00
+2026-04-30 10:46:14,489 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/best_model.pt
+2026-04-30 11:00:48,877 [INFO] src.training.trainer: Epoch 5/100 | TF=1.00 | LR=0.001000 | Train: 0.3629 (PET=0.0720 PCK=0.0133 AET=0.0626 CWD=0.0487 AET_ext=0.3379) | Val: 0.9064 | Weights: PET=0.96 PCK=1.00
+2026-04-30 11:00:48,891 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/best_model.pt
+2026-04-30 11:15:10,756 [INFO] src.training.trainer: Epoch 6/100 | TF=1.00 | LR=0.001000 | Train: 0.3455 (PET=0.0723 PCK=0.0113 AET=0.0584 CWD=0.0469 AET_ext=0.3135) | Val: 1.2768 | Weights: PET=0.95 PCK=1.00
+2026-04-30 11:29:33,352 [INFO] src.training.trainer: Epoch 7/100 | TF=1.00 | LR=0.000999 | Train: 0.3275 (PET=0.0719 PCK=0.0103 AET=0.0545 CWD=0.0445 AET_ext=0.2920) | Val: 1.3418 | Weights: PET=0.94 PCK=1.00
+2026-04-30 11:43:59,768 [INFO] src.training.trainer: Epoch 8/100 | TF=1.00 | LR=0.000998 | Train: 0.3167 (PET=0.0723 PCK=0.0094 AET=0.0520 CWD=0.0434 AET_ext=0.2768) | Val: 0.9850 | Weights: PET=0.93 PCK=1.00
+2026-04-30 11:58:36,693 [INFO] src.training.trainer: Epoch 9/100 | TF=1.00 | LR=0.000996 | Train: 0.3073 (PET=0.0725 PCK=0.0087 AET=0.0500 CWD=0.0422 AET_ext=0.2649) | Val: 1.2036 | Weights: PET=0.92 PCK=1.00
+2026-04-30 12:12:46,975 [INFO] src.training.trainer: Epoch 10/100 | TF=1.00 | LR=0.000993 | Train: 0.3012 (PET=0.0728 PCK=0.0084 AET=0.0485 CWD=0.0414 AET_ext=0.2563) | Val: 1.0456 | Weights: PET=0.91 PCK=1.00
+2026-04-30 12:12:46,989 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/checkpoint_epoch010.pt
+2026-04-30 12:26:52,093 [INFO] src.training.trainer: Epoch 11/100 | TF=1.00 | LR=0.000990 | Train: 0.2957 (PET=0.0731 PCK=0.0079 AET=0.0475 CWD=0.0407 AET_ext=0.2497) | Val: 0.9635 | Weights: PET=0.90 PCK=1.00
+2026-04-30 12:41:01,768 [INFO] src.training.trainer: Epoch 12/100 | TF=1.00 | LR=0.000987 | Train: 0.2893 (PET=0.0734 PCK=0.0079 AET=0.0460 CWD=0.0398 AET_ext=0.2409) | Val: 1.2317 | Weights: PET=0.90 PCK=1.00
+2026-04-30 12:55:00,438 [INFO] src.training.trainer: Epoch 13/100 | TF=1.00 | LR=0.000983 | Train: 0.2859 (PET=0.0739 PCK=0.0077 AET=0.0451 CWD=0.0394 AET_ext=0.2359) | Val: 1.2848 | Weights: PET=0.89 PCK=1.00
+2026-04-30 13:08:58,760 [INFO] src.training.trainer: Epoch 14/100 | TF=1.00 | LR=0.000978 | Train: 0.2812 (PET=0.0744 PCK=0.0074 AET=0.0442 CWD=0.0387 AET_ext=0.2304) | Val: 1.0713 | Weights: PET=0.88 PCK=1.00
+2026-04-30 13:22:52,631 [INFO] src.training.trainer: Epoch 15/100 | TF=1.00 | LR=0.000973 | Train: 0.2787 (PET=0.0747 PCK=0.0075 AET=0.0436 CWD=0.0383 AET_ext=0.2274) | Val: 1.2180 | Weights: PET=0.87 PCK=1.00
+2026-04-30 13:36:48,855 [INFO] src.training.trainer: Epoch 16/100 | TF=1.00 | LR=0.000967 | Train: 0.2739 (PET=0.0751 PCK=0.0071 AET=0.0427 CWD=0.0377 AET_ext=0.2213) | Val: 0.9747 | Weights: PET=0.86 PCK=1.00
+2026-04-30 13:50:44,730 [INFO] src.training.trainer: Epoch 17/100 | TF=1.00 | LR=0.000961 | Train: 0.2724 (PET=0.0758 PCK=0.0070 AET=0.0423 CWD=0.0375 AET_ext=0.2186) | Val: 1.0789 | Weights: PET=0.85 PCK=1.00
+2026-04-30 14:04:29,737 [INFO] src.training.trainer: Epoch 18/100 | TF=1.00 | LR=0.000955 | Train: 0.2697 (PET=0.0763 PCK=0.0068 AET=0.0418 CWD=0.0371 AET_ext=0.2152) | Val: 1.1227 | Weights: PET=0.84 PCK=1.00
+2026-04-30 14:18:15,408 [INFO] src.training.trainer: Epoch 19/100 | TF=1.00 | LR=0.000947 | Train: 0.2671 (PET=0.0767 PCK=0.0067 AET=0.0413 CWD=0.0367 AET_ext=0.2129) | Val: 1.0825 | Weights: PET=0.83 PCK=1.00
+2026-04-30 14:32:02,146 [INFO] src.training.trainer: Epoch 20/100 | TF=1.00 | LR=0.000940 | Train: 0.2648 (PET=0.0772 PCK=0.0065 AET=0.0408 CWD=0.0364 AET_ext=0.2097) | Val: 0.9524 | Weights: PET=0.83 PCK=1.00
+2026-04-30 14:32:02,161 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/checkpoint_epoch020.pt
+2026-04-30 14:45:51,396 [INFO] src.training.trainer: Epoch 21/100 | TF=1.00 | LR=0.000932 | Train: 0.2626 (PET=0.0778 PCK=0.0064 AET=0.0404 CWD=0.0361 AET_ext=0.2069) | Val: 0.9973 | Weights: PET=0.82 PCK=1.00
+2026-04-30 14:59:41,226 [INFO] src.training.trainer: Epoch 22/100 | TF=1.00 | LR=0.000923 | Train: 0.2607 (PET=0.0783 PCK=0.0066 AET=0.0399 CWD=0.0358 AET_ext=0.2041) | Val: 1.0252 | Weights: PET=0.81 PCK=1.00
+2026-04-30 15:13:33,225 [INFO] src.training.trainer: Epoch 23/100 | TF=1.00 | LR=0.000914 | Train: 0.2587 (PET=0.0788 PCK=0.0065 AET=0.0396 CWD=0.0355 AET_ext=0.2022) | Val: 0.9891 | Weights: PET=0.80 PCK=1.00
+2026-04-30 15:27:26,036 [INFO] src.training.trainer: Epoch 24/100 | TF=1.00 | LR=0.000905 | Train: 0.2563 (PET=0.0792 PCK=0.0062 AET=0.0392 CWD=0.0351 AET_ext=0.1992) | Val: 1.0720 | Weights: PET=0.79 PCK=1.00
+2026-04-30 15:41:25,568 [INFO] src.training.trainer: Epoch 25/100 | TF=1.00 | LR=0.000895 | Train: 0.2550 (PET=0.0799 PCK=0.0062 AET=0.0389 CWD=0.0349 AET_ext=0.1976) | Val: 1.0015 | Weights: PET=0.79 PCK=1.00
+2026-04-30 15:55:33,592 [INFO] src.training.trainer: Epoch 26/100 | TF=1.00 | LR=0.000884 | Train: 0.2529 (PET=0.0804 PCK=0.0060 AET=0.0385 CWD=0.0346 AET_ext=0.1949) | Val: 1.0712 | Weights: PET=0.78 PCK=1.00
+2026-04-30 16:09:40,302 [INFO] src.training.trainer: Epoch 27/100 | TF=1.00 | LR=0.000873 | Train: 0.2517 (PET=0.0810 PCK=0.0062 AET=0.0382 CWD=0.0344 AET_ext=0.1933) | Val: 1.1572 | Weights: PET=0.77 PCK=1.00
+2026-04-30 16:23:48,339 [INFO] src.training.trainer: Epoch 28/100 | TF=1.00 | LR=0.000862 | Train: 0.2494 (PET=0.0813 PCK=0.0059 AET=0.0379 CWD=0.0340 AET_ext=0.1916) | Val: 1.0419 | Weights: PET=0.76 PCK=1.00
+2026-04-30 16:37:54,496 [INFO] src.training.trainer: Epoch 29/100 | TF=1.00 | LR=0.000851 | Train: 0.2480 (PET=0.0820 PCK=0.0059 AET=0.0376 CWD=0.0338 AET_ext=0.1896) | Val: 1.1947 | Weights: PET=0.75 PCK=1.00
+Traceback (most recent call last):
+  File "/home/mmann1123/extra_space/bcm_emulator/train.py", line 211, in <module>
+    main()
+  File "/home/mmann1123/extra_space/bcm_emulator/train.py", line 191, in main
+    history = trainer.train()
+              ^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/training/trainer.py", line 146, in train
+    val_losses = self._validate(epoch, tf_ratio)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/training/trainer.py", line 265, in _validate
+    preds = self.model(inputs, 0.0, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi=kbdi, kv=kv)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/models/bcm_model.py", line 146, in forward
+    return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi, kv)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/models/bcm_model.py", line 237, in _forward_autoregressive
+    aet_slice = self._build_aet_input(x_raw_slice, fveg_ids)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/models/bcm_model.py", line 154, in _build_aet_input
+    aet_input = x_raw[:, self.aet_raw_channel_idx, :]
+                ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.AcceleratorError: CUDA error: unspecified launch failure
+Search for `cudaErrorLaunchFailure' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+ERROR conda.cli.main_run:execute(47): `conda run python train.py --config config_v24a_lambda1p0.yaml --run-id v24a-annualpool-lambda1.0-v17-polaris-awc --notes v17-polaris-awc + annual-pooled MSE on PET+AET, lambda=1.0, WY=Oct-Sep, vectorized loss` failed. (See above for error)
+2026-04-30 16:52:43,576 [INFO] __main__: Using device: cuda
+2026-04-30 16:52:43,576 [INFO] __main__: Loading dataset...
+2026-04-30 16:52:43,638 [INFO] src.data.splits: Splits: train=1980-01..2019-09 (477 months), test=2019-10..2024-09 (60 months)
+2026-04-30 16:52:43,660 [INFO] src.data.splits: Using 240871 pixels (50% of valid)
+2026-04-30 16:52:43,669 [INFO] src.data.dataset: Preloading data for 240871 pixels into RAM...
+2026-04-30 16:52:58,734 [INFO] src.data.dataset:   Dynamic: 108/477 timesteps loaded
+2026-04-30 16:53:10,907 [INFO] src.data.dataset:   Dynamic: 204/477 timesteps loaded
+2026-04-30 16:53:23,069 [INFO] src.data.dataset:   Dynamic: 300/477 timesteps loaded
+2026-04-30 16:53:36,685 [INFO] src.data.dataset:   Dynamic: 408/477 timesteps loaded
+2026-04-30 16:53:45,598 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-04-30 16:53:59,589 [INFO] src.data.dataset: Preload complete. Dynamic: 6894 MB, Targets: 1838 MB
+2026-04-30 16:53:59,599 [INFO] src.data.dataset: Preloading data for 240871 pixels into RAM...
+2026-04-30 16:54:07,686 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-04-30 16:54:09,527 [INFO] src.data.dataset: Preload complete. Dynamic: 882 MB, Targets: 235 MB
+2026-04-30 16:54:09,577 [INFO] src.data.dataset: EcoregionStratifiedSampler: 13 ecoregions, 18528 samples/region, 240871 total/epoch
+2026-04-30 16:54:09,578 [INFO] __main__: Building model...
+2026-04-30 16:54:09,587 [INFO] __main__: Model parameters: 1,160,740
+2026-04-30 16:54:10,106 [INFO] src.training.trainer: Resumed from checkpoints/checkpoint_epoch020.pt at epoch 20, val_loss=0.9524, best_val_loss=0.9064
+2026-04-30 16:54:10,106 [INFO] __main__: Starting training...
+2026-04-30 17:07:56,018 [INFO] src.training.trainer: Epoch 21/100 | TF=1.00 | LR=0.000932 | Train: 0.2625 (PET=0.0777 PCK=0.0066 AET=0.0403 CWD=0.0361 AET_ext=0.2065) | Val: 1.1180 | Weights: PET=0.82 PCK=1.00
+2026-04-30 17:21:44,799 [INFO] src.training.trainer: Epoch 22/100 | TF=1.00 | LR=0.000923 | Train: 0.2604 (PET=0.0783 PCK=0.0065 AET=0.0399 CWD=0.0357 AET_ext=0.2038) | Val: 1.0324 | Weights: PET=0.81 PCK=1.00
+2026-04-30 17:35:34,297 [INFO] src.training.trainer: Epoch 23/100 | TF=1.00 | LR=0.000914 | Train: 0.2587 (PET=0.0788 PCK=0.0063 AET=0.0396 CWD=0.0355 AET_ext=0.2019) | Val: 0.9258 | Weights: PET=0.80 PCK=1.00
+2026-04-30 17:49:23,219 [INFO] src.training.trainer: Epoch 24/100 | TF=1.00 | LR=0.000905 | Train: 0.2565 (PET=0.0792 PCK=0.0063 AET=0.0392 CWD=0.0351 AET_ext=0.1997) | Val: 1.0850 | Weights: PET=0.79 PCK=1.00
+2026-04-30 18:03:13,105 [INFO] src.training.trainer: Epoch 25/100 | TF=1.00 | LR=0.000895 | Train: 0.2546 (PET=0.0797 PCK=0.0063 AET=0.0388 CWD=0.0348 AET_ext=0.1972) | Val: 1.1779 | Weights: PET=0.79 PCK=1.00
+2026-04-30 18:17:03,757 [INFO] src.training.trainer: Epoch 26/100 | TF=1.00 | LR=0.000884 | Train: 0.2531 (PET=0.0804 PCK=0.0061 AET=0.0385 CWD=0.0346 AET_ext=0.1955) | Val: 1.0636 | Weights: PET=0.78 PCK=1.00
+2026-04-30 18:30:54,119 [INFO] src.training.trainer: Epoch 27/100 | TF=1.00 | LR=0.000873 | Train: 0.2516 (PET=0.0810 PCK=0.0063 AET=0.0382 CWD=0.0344 AET_ext=0.1932) | Val: 1.0717 | Weights: PET=0.77 PCK=1.00
+2026-04-30 18:44:45,252 [INFO] src.training.trainer: Epoch 28/100 | TF=1.00 | LR=0.000862 | Train: 0.2498 (PET=0.0814 PCK=0.0060 AET=0.0379 CWD=0.0341 AET_ext=0.1918) | Val: 1.0773 | Weights: PET=0.76 PCK=1.00
+2026-04-30 18:58:34,585 [INFO] src.training.trainer: Epoch 29/100 | TF=1.00 | LR=0.000851 | Train: 0.2484 (PET=0.0821 PCK=0.0059 AET=0.0376 CWD=0.0339 AET_ext=0.1900) | Val: 1.1014 | Weights: PET=0.75 PCK=1.00
+2026-04-30 19:12:23,709 [INFO] src.training.trainer: Epoch 30/100 | TF=1.00 | LR=0.000839 | Train: 0.2466 (PET=0.0825 PCK=0.0060 AET=0.0373 CWD=0.0336 AET_ext=0.1878) | Val: 1.1135 | Weights: PET=0.75 PCK=1.00
+2026-04-30 19:12:23,725 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/checkpoint_epoch030.pt
+2026-04-30 19:26:13,586 [INFO] src.training.trainer: Epoch 31/100 | TF=1.00 | LR=0.000826 | Train: 0.2448 (PET=0.0830 PCK=0.0060 AET=0.0369 CWD=0.0333 AET_ext=0.1859) | Val: 1.1245 | Weights: PET=0.74 PCK=1.00
+2026-04-30 19:40:01,981 [INFO] src.training.trainer: Epoch 32/100 | TF=1.00 | LR=0.000814 | Train: 0.2437 (PET=0.0836 PCK=0.0059 AET=0.0368 CWD=0.0331 AET_ext=0.1843) | Val: 1.0857 | Weights: PET=0.73 PCK=1.00
+2026-04-30 19:53:50,886 [INFO] src.training.trainer: Epoch 33/100 | TF=1.00 | LR=0.000801 | Train: 0.2418 (PET=0.0839 PCK=0.0059 AET=0.0364 CWD=0.0328 AET_ext=0.1825) | Val: 1.0936 | Weights: PET=0.72 PCK=1.00
+2026-04-30 20:07:39,809 [INFO] src.training.trainer: Epoch 34/100 | TF=1.00 | LR=0.000787 | Train: 0.2411 (PET=0.0848 PCK=0.0057 AET=0.0363 CWD=0.0327 AET_ext=0.1818) | Val: 0.9760 | Weights: PET=0.72 PCK=1.00
+2026-04-30 20:21:27,870 [INFO] src.training.trainer: Epoch 35/100 | TF=1.00 | LR=0.000773 | Train: 0.2399 (PET=0.0853 PCK=0.0057 AET=0.0361 CWD=0.0325 AET_ext=0.1806) | Val: 1.1686 | Weights: PET=0.71 PCK=1.00
+2026-04-30 20:35:07,657 [INFO] src.training.trainer: Epoch 36/100 | TF=1.00 | LR=0.000759 | Train: 0.2387 (PET=0.0861 PCK=0.0055 AET=0.0359 CWD=0.0323 AET_ext=0.1789) | Val: 1.1579 | Weights: PET=0.70 PCK=1.00
+2026-04-30 20:48:49,782 [INFO] src.training.trainer: Epoch 37/100 | TF=1.00 | LR=0.000745 | Train: 0.2372 (PET=0.0863 PCK=0.0056 AET=0.0357 CWD=0.0320 AET_ext=0.1778) | Val: 0.9939 | Weights: PET=0.70 PCK=1.00
+2026-04-30 21:02:35,676 [INFO] src.training.trainer: Epoch 38/100 | TF=1.00 | LR=0.000731 | Train: 0.2363 (PET=0.0871 PCK=0.0055 AET=0.0355 CWD=0.0319 AET_ext=0.1768) | Val: 0.9781 | Weights: PET=0.69 PCK=1.00
+2026-04-30 21:16:21,490 [INFO] src.training.trainer: Epoch 39/100 | TF=1.00 | LR=0.000716 | Train: 0.2345 (PET=0.0875 PCK=0.0054 AET=0.0352 CWD=0.0316 AET_ext=0.1748) | Val: 1.0558 | Weights: PET=0.68 PCK=1.00
+2026-04-30 21:30:07,018 [INFO] src.training.trainer: Epoch 40/100 | TF=1.00 | LR=0.000701 | Train: 0.2334 (PET=0.0883 PCK=0.0055 AET=0.0350 CWD=0.0314 AET_ext=0.1731) | Val: 1.1113 | Weights: PET=0.68 PCK=1.00
+2026-04-30 21:30:07,032 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/checkpoint_epoch040.pt
+2026-04-30 21:43:52,641 [INFO] src.training.trainer: Epoch 41/100 | TF=1.00 | LR=0.000686 | Train: 0.2331 (PET=0.0889 PCK=0.0055 AET=0.0350 CWD=0.0313 AET_ext=0.1731) | Val: 1.0698 | Weights: PET=0.67 PCK=1.00
+2026-04-30 21:57:38,253 [INFO] src.training.trainer: Epoch 42/100 | TF=1.00 | LR=0.000670 | Train: 0.2306 (PET=0.0892 PCK=0.0054 AET=0.0345 CWD=0.0310 AET_ext=0.1704) | Val: 1.0332 | Weights: PET=0.66 PCK=1.00
+2026-04-30 22:11:37,879 [INFO] src.training.trainer: Epoch 43/100 | TF=1.00 | LR=0.000655 | Train: 0.2302 (PET=0.0900 PCK=0.0053 AET=0.0344 CWD=0.0309 AET_ext=0.1701) | Val: 1.1307 | Weights: PET=0.66 PCK=1.00
+2026-04-30 22:25:22,103 [INFO] src.training.trainer: Epoch 44/100 | TF=1.00 | LR=0.000639 | Train: 0.2297 (PET=0.0905 PCK=0.0054 AET=0.0344 CWD=0.0307 AET_ext=0.1698) | Val: 0.9551 | Weights: PET=0.65 PCK=1.00
+2026-04-30 22:39:07,244 [INFO] src.training.trainer: Epoch 45/100 | TF=1.00 | LR=0.000623 | Train: 0.2275 (PET=0.0908 PCK=0.0052 AET=0.0340 CWD=0.0304 AET_ext=0.1679) | Val: 1.0998 | Weights: PET=0.64 PCK=1.00
+2026-04-30 22:52:51,806 [INFO] src.training.trainer: Epoch 46/100 | TF=1.00 | LR=0.000607 | Train: 0.2262 (PET=0.0915 PCK=0.0053 AET=0.0338 CWD=0.0302 AET_ext=0.1653) | Val: 1.1774 | Weights: PET=0.64 PCK=1.00
+2026-04-30 23:06:37,967 [INFO] src.training.trainer: Epoch 47/100 | TF=1.00 | LR=0.000590 | Train: 0.2245 (PET=0.0922 PCK=0.0053 AET=0.0335 CWD=0.0299 AET_ext=0.1631) | Val: 1.0444 | Weights: PET=0.63 PCK=1.00
+2026-04-30 23:20:23,150 [INFO] src.training.trainer: Epoch 48/100 | TF=1.00 | LR=0.000574 | Train: 0.2233 (PET=0.0930 PCK=0.0053 AET=0.0332 CWD=0.0298 AET_ext=0.1612) | Val: 0.9821 | Weights: PET=0.62 PCK=1.00
+2026-04-30 23:34:08,732 [INFO] src.training.trainer: Epoch 49/100 | TF=1.00 | LR=0.000558 | Train: 0.2225 (PET=0.0935 PCK=0.0052 AET=0.0331 CWD=0.0296 AET_ext=0.1608) | Val: 1.0561 | Weights: PET=0.62 PCK=1.00
+2026-04-30 23:47:54,326 [INFO] src.training.trainer: Epoch 50/100 | TF=1.00 | LR=0.000541 | Train: 0.2217 (PET=0.0942 PCK=0.0052 AET=0.0330 CWD=0.0294 AET_ext=0.1602) | Val: 1.0452 | Weights: PET=0.61 PCK=1.00
+2026-04-30 23:47:54,340 [INFO] src.training.trainer: Saved checkpoint: /home/mmann1123/extra_space/bcm_emulator/checkpoints/checkpoint_epoch050.pt
+2026-05-01 00:01:39,065 [INFO] src.training.trainer: Epoch 51/100 | TF=1.00 | LR=0.000525 | Train: 0.2205 (PET=0.0946 PCK=0.0053 AET=0.0327 CWD=0.0292 AET_ext=0.1588) | Val: 1.0199 | Weights: PET=0.61 PCK=1.00
+2026-05-01 00:18:56,710 [INFO] src.training.trainer: Epoch 52/100 | TF=0.98 | LR=0.000508 | Train: 0.2204 (PET=0.0956 PCK=0.0052 AET=0.0328 CWD=0.0292 AET_ext=0.1590) | Val: 1.0253 | Weights: PET=0.60 PCK=1.00
+2026-05-01 00:36:06,455 [INFO] src.training.trainer: Epoch 53/100 | TF=0.96 | LR=0.000492 | Train: 0.2205 (PET=0.0964 PCK=0.0055 AET=0.0328 CWD=0.0291 AET_ext=0.1588) | Val: 0.9170 | Weights: PET=0.59 PCK=1.00
+Traceback (most recent call last):
+  File "/home/mmann1123/extra_space/bcm_emulator/train.py", line 211, in <module>
+    main()
+  File "/home/mmann1123/extra_space/bcm_emulator/train.py", line 191, in main
+    history = trainer.train()
+              ^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/training/trainer.py", line 146, in train
+    val_losses = self._validate(epoch, tf_ratio)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/training/trainer.py", line 265, in _validate
+    preds = self.model(inputs, 0.0, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi=kbdi, kv=kv)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/models/bcm_model.py", line 146, in forward
+    return self._forward_autoregressive(x, tf_ratio, gt_pck_prev, gt_aet_prev, fveg_ids, kbdi, kv)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/models/bcm_model.py", line 237, in _forward_autoregressive
+    aet_slice = self._build_aet_input(x_raw_slice, fveg_ids)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mmann1123/extra_space/bcm_emulator/src/models/bcm_model.py", line 154, in _build_aet_input
+    aet_input = x_raw[:, self.aet_raw_channel_idx, :]
+                ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.AcceleratorError: CUDA error: unspecified launch failure
+Search for `cudaErrorLaunchFailure' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+ERROR conda.cli.main_run:execute(47): `conda run python train.py --config config_v24a_lambda1p0.yaml --run-id v24a-annualpool-lambda1.0-v17-polaris-awc --notes v17-polaris-awc + annual-pooled MSE on PET+AET, lambda=1.0, WY=Oct-Sep, vectorized loss; resumed from epoch 20 after CUDA unspecified launch failure at epoch 30 val --resume checkpoints/checkpoint_epoch020.pt` failed. (See above for error)
+/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/cuda/__init__.py:184: UserWarning: CUDA initialization: Unexpected error from cudaGetDeviceCount(). Did you run some cuda functions before calling NumCudaDevices() that might have already set an error? Error 804: forward compatibility was attempted on non supported HW (Triggered internally at /pytorch/c10/cuda/CUDAFunctions.cpp:119.)
+  return torch._C._cuda_getDeviceCount() > 0
+2026-05-01 00:47:46,756 [INFO] __main__: Using device: cpu
+2026-05-01 00:47:46,756 [INFO] __main__: Loading dataset...
+2026-05-01 00:47:46,823 [INFO] src.data.splits: Splits: train=1980-01..2019-09 (477 months), test=2019-10..2024-09 (60 months)
+2026-05-01 00:47:46,848 [INFO] src.data.splits: Using 240871 pixels (50% of valid)
+2026-05-01 00:47:46,856 [INFO] src.data.dataset: Preloading data for 240871 pixels into RAM...
+2026-05-01 00:48:01,913 [INFO] src.data.dataset:   Dynamic: 108/477 timesteps loaded
+2026-05-01 00:48:14,014 [INFO] src.data.dataset:   Dynamic: 204/477 timesteps loaded
+2026-05-01 00:48:26,100 [INFO] src.data.dataset:   Dynamic: 300/477 timesteps loaded
+2026-05-01 00:48:39,683 [INFO] src.data.dataset:   Dynamic: 408/477 timesteps loaded
+2026-05-01 00:48:48,611 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-05-01 00:49:02,626 [INFO] src.data.dataset: Preload complete. Dynamic: 6894 MB, Targets: 1838 MB
+2026-05-01 00:49:02,635 [INFO] src.data.dataset: Preloading data for 240871 pixels into RAM...
+2026-05-01 00:49:10,720 [INFO] src.data.dataset: Loaded Kv table: 62 classes, range [0.000, 1.517]
+2026-05-01 00:49:12,562 [INFO] src.data.dataset: Preload complete. Dynamic: 882 MB, Targets: 235 MB
+2026-05-01 00:49:12,612 [INFO] src.data.dataset: EcoregionStratifiedSampler: 13 ecoregions, 18528 samples/region, 240871 total/epoch
+2026-05-01 00:49:12,612 [INFO] __main__: Building model...
+2026-05-01 00:49:12,621 [INFO] __main__: Model parameters: 1,160,740
+2026-05-01 00:49:13,021 [INFO] src.training.trainer: Resumed from checkpoints/checkpoint_epoch050.pt at epoch 50, val_loss=1.0452, best_val_loss=0.9064
+2026-05-01 00:49:13,021 [INFO] __main__: Starting training...
+/home/mmann1123/miniconda3/envs/deep_field/lib/python3.12/site-packages/torch/utils/data/dataloader.py:1118: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  super().__init__(loader)
+Terminated
