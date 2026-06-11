@@ -9,6 +9,41 @@ A deep learning emulator for the Basin Characterization Model (BCM), a hydrologi
 - **PCK** — Snowpack
 - **CWD** — Climatic Water Deficit (algebraic: PET − AET)
 
+## How Well Does It Work? (v17-polaris-awc)
+
+The current best model, **v17-polaris-awc**, reproduces the expensive BCM simulation almost exactly — but in seconds instead of hours. Here's what that means in plain terms.
+
+### The scorecard
+
+We grade the emulator with a standard hydrology "skill score" called **NSE** (Nash–Sutcliffe Efficiency). It's easy to read:
+
+- **NSE = 1.0** → a perfect match to the real BCM model.
+- **NSE = 0.0** → no better than just guessing the long-term average.
+- **NSE below 0** → worse than guessing.
+
+In practice, anything above **0.8 is considered very good** and above **0.9 is excellent**.
+
+| Variable | What it is | NSE (skill) | Typical error |
+|----------|-----------|:-----------:|:-------------:|
+| **CWD** — Climatic Water Deficit | How "thirsty" the landscape is (drought stress) | **0.93** ✅ | ±16 mm |
+| **PCK** — Snowpack | Water stored as mountain snow | **0.95** ✅ | ±12 mm |
+| **PET** — Potential Evapotranspiration | Atmospheric "demand" for water | **0.88** ✅ | ±21 mm |
+| **AET** — Actual Evapotranspiration | Water actually used by plants/soil | **0.85** ✅ | ±12 mm |
+
+**The bottom line:** the emulator's most important output — **CWD, the drought-stress indicator** — matches the original model with 93% skill, and the predictions hold up even on data the model never saw during training (a 5-year holdout covering the 2020–2024 megadrought scored CWD NSE = 0.92).
+
+### Figure 1 — Where the model is accurate (drought stress / CWD)
+
+![Per-pixel CWD accuracy across California](snapshots/v17-polaris-awc/spatial_maps/nse_cwd.png)
+
+This map grades the emulator at **every single 1 km pixel** in California for CWD. **Green = excellent agreement** with the real BCM model; red would mean trouble. The map is almost entirely green: **99.2% of all pixels score better than "just guessing,"** and the median pixel scores 0.93. In short, the emulator is reliable essentially everywhere — across mountains, valleys, coast, and desert alike.
+
+### Figure 2 — Where it's hardest (water use / AET)
+
+![Per-pixel AET accuracy across California](snapshots/v17-polaris-awc/spatial_maps/nse_aet.png)
+
+AET — the water plants and soils actually use — is the toughest variable to predict, and this map shows why. Most of the state is still green (good), but **red speckles appear in the deserts and dry valleys of the southeast**. In those arid spots, actual water use is tiny and erratic from month to month, so even small absolute errors look large on this score. This is a known limitation, not a failure: statewide AET still scores a solid 0.85, and the errors are concentrated in the driest, least-vegetated areas where the values barely change anyway.
+
 ## Project Structure
 
 ```
